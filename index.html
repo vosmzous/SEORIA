@@ -178,12 +178,12 @@
   /* ─── GRID ─── */
   .cal-wrap {
     padding: 0 290px 40px;
-    overflow: hidden;
+    overflow: visible;
   }
   .cal-grid {
     border: 1px solid var(--border);
     border-radius: 12px;
-    overflow: hidden;
+    overflow: visible;
     background: var(--surface);
     position: relative;
   }
@@ -208,6 +208,8 @@
   .cal-week {
     display: grid;
     grid-template-columns: 140px repeat(5, 1fr);
+    grid-auto-rows: auto;
+    align-items: stretch;
     border-bottom: 1px solid var(--border);
   }
   .cal-week:last-child { border-bottom: none; }
@@ -219,8 +221,9 @@
     display: flex;
     flex-direction: column;
     gap: 4px;
-    overflow: hidden;
+    overflow: visible;
     min-width: 0;
+    height: auto;
   }
   .week-label {
     font-family: 'Pretendard', sans-serif;
@@ -244,13 +247,14 @@
     padding: 10px 8px;
     border-right: 1px solid var(--border);
     min-height: 120px;
+    height: auto;
     display: flex;
     flex-direction: column;
     gap: 4px;
     position: relative;
     transition: background 0.1s;
     cursor: pointer;
-    overflow: hidden;
+    overflow: visible;
     min-width: 0;
     word-break: break-word;
   }
@@ -973,6 +977,8 @@ let activeFilter = 'all';
 // ─── DATA ───
 // 공휴일만 로컬 정의 (나머지는 전부 Supabase DB에서 로드)
 const defaultData = {
+  '2026-06-03': [{type:'holiday',text:'지방선거일'}],
+  '2026-06-04': [{type:'holiday',text:'창립기념일'}],
   '2026-07-17': [{type:'holiday',text:'제헌절'}],
   '2026-08-17': [{type:'holiday',text:'광복절 대체 공휴일'}],
   '2026-09-24': [{type:'holiday',text:'추석 연휴'}],
