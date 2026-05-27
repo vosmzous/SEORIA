@@ -783,12 +783,26 @@
       <!-- VIEW MODE -->
       <div id="detail-view-mode">
         <div id="detail-text" class="detail-text"></div>
+        <div id="detail-memo" style="display:none;margin-top:10px;padding:10px 12px;background:#f7f6f3;border-radius:8px;font-size:13px;color:#6b6860;line-height:1.6;white-space:pre-wrap;"></div>
       </div>
       <!-- EDIT MODE -->
       <div id="detail-edit-mode" style="display:none;">
         <div class="form-row">
-          <label class="form-label">날짜</label>
-          <input type="date" class="form-input" id="edit-date-input">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+            <label class="form-label" style="margin-bottom:0;">날짜</label>
+            <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:#6b6860;cursor:pointer;">
+              <input type="checkbox" id="edit-is-range" onchange="toggleEditDateRange()" style="cursor:pointer;">
+              기간 설정
+            </label>
+          </div>
+          <div id="edit-date-single">
+            <input type="date" class="form-input" id="edit-date-input">
+          </div>
+          <div id="edit-date-range" style="display:none;flex-direction:row;gap:6px;align-items:center;">
+            <input type="date" class="form-input" id="edit-date-start" style="flex:1;">
+            <span style="color:#a09e98;font-size:12px;flex-shrink:0;padding:0 2px;">~</span>
+            <input type="date" class="form-input" id="edit-date-end" style="flex:1;">
+          </div>
         </div>
         <div class="form-row">
           <label class="form-label">캠페인</label>
@@ -807,6 +821,10 @@
         <div class="form-row">
           <label class="form-label">내용</label>
           <input type="text" class="form-input" id="edit-text-input" placeholder="일정 내용">
+        </div>
+        <div class="form-row">
+          <label class="form-label">메모</label>
+          <textarea class="form-input" id="edit-memo-input" placeholder="메모를 입력하세요" rows="3" style="resize:vertical;line-height:1.5;"></textarea>
         </div>
       </div>
       <!-- GALLERY -->
@@ -871,6 +889,10 @@
       <div class="form-row">
         <label class="form-label">내용</label>
         <input type="text" class="form-input" id="add-text" placeholder="일정 내용을 입력하세요">
+      </div>
+      <div class="form-row">
+        <label class="form-label">메모</label>
+        <textarea class="form-input" id="add-memo" placeholder="메모를 입력하세요" rows="3" style="resize:vertical;line-height:1.5;"></textarea>
       </div>
       <div class="form-row" style="margin-bottom:0;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
@@ -1064,7 +1086,7 @@ function showLoader(on) {
 }
 
 async function saveEventToDB(ev) {
-  const payload = { date: ev.date, campaign: ev.campaign, type: ev.type, text: ev.text };
+  const payload = { date: ev.date, campaign: ev.campaign, type: ev.type, text: ev.text, memo: ev.memo || null };
   if (ev.dateEnd && ev.dateEnd !== ev.date) payload.date_end = ev.dateEnd;
   const row = await sbFetch('events', 'POST', payload);
   return row && row[0] ? row[0].id : null;
@@ -1367,7 +1389,7 @@ sbClient
           snsData[date].splice(idx, 1);
           if (!snsData[date].length) delete snsData[date];
           if (!snsData[row.date]) snsData[row.date] = [];
-          snsData[row.date].push({ campaign: row.campaign, type: row.type, text: row.text, _dbId: row.id });
+          snsData[row.date].push({ campaign: row.campaign, type: row.type, text: row.text, memo: row.memo || '', _dbId: row.id });
         } else {
           ev.campaign = row.campaign;
           ev.type = row.type;
@@ -1424,6 +1446,13 @@ async function openDetail(dateStr, idx) {
   badge.textContent = campLabel + ' · ' + typeLabel;
   badge.className = 'detail-badge ' + (ev.campaign === 'teaser' ? 'lc-teaser' : 'lc-debut');
   document.getElementById('detail-text').textContent = ev.text;
+  const memoEl = document.getElementById('detail-memo');
+  if (ev.memo) {
+    memoEl.textContent = ev.memo;
+    memoEl.style.display = 'block';
+  } else {
+    memoEl.style.display = 'none';
+  }
   await renderGallery();
   document.getElementById('detail-overlay').classList.add('open');
 }
@@ -1446,7 +1475,18 @@ function toggleEditMode() {
   document.getElementById('detail-view-mode').style.display = 'none';
   document.getElementById('detail-edit-mode').style.display = 'block';
   document.getElementById('edit-text-input').value = ev.text;
+  document.getElementById('edit-memo-input').value = ev.memo || '';
   document.getElementById('edit-date-input').value = _detailKey;
+
+  // Set date range state
+  const hasRange = ev.dateEnd && ev.dateEnd !== _detailKey;
+  document.getElementById('edit-is-range').checked = hasRange;
+  document.getElementById('edit-date-single').style.display = hasRange ? 'none' : 'block';
+  document.getElementById('edit-date-range').style.display  = hasRange ? 'flex' : 'none';
+  if (hasRange) {
+    document.getElementById('edit-date-start').value = _detailKey;
+    document.getElementById('edit-date-end').value   = ev.dateEnd || _detailKey;
+  }
 
   // set seg buttons
   setEditCampaign(_editCampaign);
@@ -1487,8 +1527,11 @@ function setEditType(t) {
 
 async function saveEdit() {
   const textVal = document.getElementById('edit-text-input').value.trim();
-  const newDate = document.getElementById('edit-date-input').value;
-  if (!newDate)       { alert('날짜를 선택해주세요.'); return; }
+  const editIsRange = document.getElementById('edit-is-range').checked;
+  const newDate     = editIsRange ? document.getElementById('edit-date-start').value : document.getElementById('edit-date-input').value;
+  const newDateEnd  = editIsRange ? document.getElementById('edit-date-end').value   : newDate;
+  if (!newDate) { alert('날짜를 선택해주세요.'); return; }
+  if (editIsRange && newDate > newDateEnd) { alert('종료일이 시작일보다 빨라요.'); return; }
   if (!textVal)       { alert('내용을 입력해주세요.'); return; }
   if (!_editCampaign) { alert('캠페인을 선택해주세요.'); return; }
   if (!_editType)     { alert('유형을 선택해주세요.'); return; }
@@ -1501,13 +1544,26 @@ async function saveEdit() {
 
   // Update in DB
   if (ev._dbId) {
+    const memoVal = document.getElementById('edit-memo-input').value.trim();
     await sbFetch('events?id=eq.' + ev._dbId, 'PATCH',
-      { date: newDate, campaign: _editCampaign, type: _editType, text: textVal },
+      { date: newDate, date_end: newDateEnd !== newDate ? newDateEnd : null, campaign: _editCampaign, type: _editType, text: textVal, memo: memoVal || null },
       'return=minimal'
     );
   } else {
     const dbId = await saveEventToDB({ date: newDate, campaign: _editCampaign, type: _editType, text: textVal });
     if (dbId) ev._dbId = dbId;
+  }
+
+  // Store dateEnd and memo on event
+  ev.dateEnd = newDateEnd !== newDate ? newDateEnd : undefined;
+  ev.memo = document.getElementById('edit-memo-input').value.trim();
+
+  // If converting to span event, move from snsData to spanEvents
+  if (editIsRange && newDate !== newDateEnd) {
+    snsData[_detailKey].splice(_detailIdx, 1);
+    if (!snsData[_detailKey].length) delete snsData[_detailKey];
+    spanEvents.push({ ...ev, dateStart: newDate, dateEnd: newDateEnd, date: newDate, _dbId: ev._dbId });
+    cancelEdit(); closeDetail(); render(); return;
   }
 
   // Move to new date if changed
@@ -1755,6 +1811,7 @@ function openAdd(dateStr) {
   _addCampaign = null; _addType = null; _addImages = [];
   document.getElementById('add-date').value = dateStr || '';
   document.getElementById('add-text').value = '';
+  document.getElementById('add-memo').value = '';
   document.getElementById('add-is-range').checked = false;
   document.getElementById('add-date-single').style.display = 'block';
   document.getElementById('add-date-range').style.display = 'none';
@@ -1856,7 +1913,8 @@ async function submitAdd() {
 
   const submitBtn = document.querySelector('#add-overlay .btn-primary');
   if (submitBtn) { submitBtn.textContent = '저장 중...'; submitBtn.disabled = true; }
-  const newEv = { campaign: _addCampaign, type: _addType, text: textVal, date: dateStart, dateEnd: dateEnd };
+  const memoVal = document.getElementById('add-memo').value.trim();
+  const newEv = { campaign: _addCampaign, type: _addType, text: textVal, memo: memoVal || '', date: dateStart, dateEnd: dateEnd };
   const dbId = await saveEventToDB(newEv);
   if (submitBtn) { submitBtn.textContent = '추가하기'; submitBtn.disabled = false; }
   if (dbId) {
