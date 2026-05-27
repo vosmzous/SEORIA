@@ -983,7 +983,14 @@ const majorCustom = {};
 const MAJOR_STORAGE_KEY = 'soria-major-custom';
 try {
   const saved = JSON.parse(localStorage.getItem(MAJOR_STORAGE_KEY) || '{}');
-  Object.assign(majorCustom, saved);
+  // Migrate old format (single object) to new format (array)
+  Object.keys(saved).forEach(k => {
+    if (saved[k] && !Array.isArray(saved[k])) {
+      majorCustom[k] = [saved[k]]; // wrap in array
+    } else {
+      majorCustom[k] = saved[k];
+    }
+  });
 } catch(e) {}
 
 function saveMajorCustom() {
