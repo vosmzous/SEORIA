@@ -717,15 +717,42 @@
 <div class="modal-overlay" id="detail-overlay">
   <div class="modal">
     <div class="modal-header">
-      <div class="modal-title">일정 상세</div>
-      <button class="modal-close" onclick="closeDetail()">&#x2715;</button>
+      <div class="modal-title" id="detail-modal-title">일정 상세</div>
+      <div style="display:flex;gap:6px;align-items:center;">
+        <button class="btn btn-ghost" id="detail-edit-btn" onclick="toggleEditMode()" style="font-size:11px;padding:4px 10px;">수정</button>
+        <button class="modal-close" onclick="closeDetail()">&#x2715;</button>
+      </div>
     </div>
     <div class="modal-body">
       <div class="detail-meta">
         <span id="detail-date" class="detail-date"></span>
         <span id="detail-badge" class="detail-badge"></span>
       </div>
-      <div id="detail-text" class="detail-text"></div>
+      <!-- VIEW MODE -->
+      <div id="detail-view-mode">
+        <div id="detail-text" class="detail-text"></div>
+      </div>
+      <!-- EDIT MODE -->
+      <div id="detail-edit-mode" style="display:none;">
+        <div class="form-row">
+          <label class="form-label">캠페인</label>
+          <div class="seg-group">
+            <button class="seg-btn" id="edit-seg-teaser" onclick="setEditCampaign('teaser')">티저 캠페인</button>
+            <button class="seg-btn" id="edit-seg-debut"  onclick="setEditCampaign('debut')">데뷔 캠페인</button>
+          </div>
+        </div>
+        <div class="form-row">
+          <label class="form-label">유형</label>
+          <div class="seg-group">
+            <button class="seg-btn" id="edit-seg-sns"   onclick="setEditType('sns')">SNS</button>
+            <button class="seg-btn" id="edit-seg-viral" onclick="setEditType('viral')">바이럴</button>
+          </div>
+        </div>
+        <div class="form-row">
+          <label class="form-label">내용</label>
+          <input type="text" class="form-input" id="edit-text-input" placeholder="일정 내용">
+        </div>
+      </div>
       <!-- GALLERY -->
       <div class="gallery-section">
         <div class="gallery-label">
@@ -738,7 +765,11 @@
     </div>
     <div class="modal-footer">
       <button class="btn btn-danger" onclick="deleteEvent()">삭제</button>
-      <button class="btn btn-ghost" onclick="closeDetail()">닫기</button>
+      <div style="display:flex;gap:6px;">
+        <button class="btn btn-ghost" id="detail-cancel-btn" onclick="cancelEdit()" style="display:none;">취소</button>
+        <button class="btn btn-ghost" id="detail-close-btn" onclick="closeDetail()">닫기</button>
+        <button class="btn btn-primary" id="detail-save-btn" onclick="saveEdit()" style="display:none;">저장</button>
+      </div>
     </div>
   </div>
 </div>
@@ -1130,9 +1161,94 @@ async function openDetail(dateStr, idx) {
 }
 
 function closeDetail() {
+  cancelEdit();
   document.getElementById('detail-overlay').classList.remove('open');
   _detailKey = null; _detailIdx = null;
   _galleryIdx = 0;
+}
+
+// ─── EDIT MODE ───
+let _editCampaign = null, _editType = null;
+
+function toggleEditMode() {
+  const ev = snsData[_detailKey][_detailIdx];
+  _editCampaign = ev.campaign;
+  _editType = ev.type;
+
+  document.getElementById('detail-view-mode').style.display = 'none';
+  document.getElementById('detail-edit-mode').style.display = 'block';
+  document.getElementById('edit-text-input').value = ev.text;
+
+  // set seg buttons
+  setEditCampaign(_editCampaign);
+  setEditType(_editType);
+
+  document.getElementById('detail-edit-btn').style.display = 'none';
+  document.getElementById('detail-close-btn').style.display = 'none';
+  document.getElementById('detail-cancel-btn').style.display = 'inline-flex';
+  document.getElementById('detail-save-btn').style.display = 'inline-flex';
+  document.getElementById('detail-modal-title').textContent = '일정 수정';
+}
+
+function cancelEdit() {
+  document.getElementById('detail-view-mode').style.display = 'block';
+  document.getElementById('detail-edit-mode').style.display = 'none';
+  document.getElementById('detail-edit-btn').style.display = '';
+  document.getElementById('detail-close-btn').style.display = '';
+  document.getElementById('detail-cancel-btn').style.display = 'none';
+  document.getElementById('detail-save-btn').style.display = 'none';
+  document.getElementById('detail-modal-title').textContent = '일정 상세';
+}
+
+function setEditCampaign(c) {
+  _editCampaign = c;
+  document.getElementById('edit-seg-teaser').className = 'seg-btn' + (c==='teaser' ? ' sel-teaser' : '');
+  document.getElementById('edit-seg-debut').className  = 'seg-btn' + (c==='debut'  ? ' sel-debut'  : '');
+}
+
+function setEditType(t) {
+  _editType = t;
+  document.getElementById('edit-seg-sns').className   = 'seg-btn' + (t==='sns'   ? ' sel-sns'   : '');
+  document.getElementById('edit-seg-viral').className = 'seg-btn' + (t==='viral' ? ' sel-viral' : '');
+}
+
+async function saveEdit() {
+  const textVal = document.getElementById('edit-text-input').value.trim();
+  if (!textVal)       { alert('내용을 입력해주세요.'); return; }
+  if (!_editCampaign) { alert('캠페인을 선택해주세요.'); return; }
+  if (!_editType)     { alert('유형을 선택해주세요.'); return; }
+
+  const ev = snsData[_detailKey][_detailIdx];
+  const saveBtn = document.getElementById('detail-save-btn');
+  saveBtn.textContent = '저장 중...'; saveBtn.disabled = true;
+
+  // If DB event, update in DB
+  if (ev._dbId) {
+    await sbFetch('events?id=eq.' + ev._dbId, 'PATCH',
+      { campaign: _editCampaign, type: _editType, text: textVal },
+      'return=minimal'
+    );
+  } else {
+    // Register in DB first
+    const dbId = await saveEventToDB({ date: _detailKey, campaign: _editCampaign, type: _editType, text: textVal });
+    if (dbId) ev._dbId = dbId;
+  }
+
+  // Update local
+  ev.campaign = _editCampaign;
+  ev.type     = _editType;
+  ev.text     = textVal;
+
+  saveBtn.textContent = '저장'; saveBtn.disabled = false;
+  cancelEdit();
+
+  // Refresh detail view
+  const badge = document.getElementById('detail-badge');
+  badge.textContent = (ev.campaign==='teaser'?'티저 캠페인':'데뷔 캠페인') + ' · ' + (ev.type==='sns'?'SNS':'바이럴');
+  badge.className = 'detail-badge ' + (ev.campaign==='teaser' ? 'lc-teaser' : 'lc-debut');
+  document.getElementById('detail-text').textContent = ev.text;
+
+  render();
 }
 
 async function deleteEvent() {
