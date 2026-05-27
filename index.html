@@ -456,6 +456,41 @@
   .cal-head-cell { position: relative; }
   .week-label-cell { position: relative; }
 
+  /* ─── CELL THUMBNAILS ─── */
+  .cell-thumbs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+    margin-top: 4px;
+  }
+  .cell-thumb {
+    width: 36px;
+    height: 36px;
+    border-radius: 4px;
+    object-fit: cover;
+    cursor: pointer;
+    border: 1px solid rgba(0,0,0,0.08);
+    transition: opacity 0.12s, transform 0.12s;
+    flex-shrink: 0;
+  }
+  .cell-thumb:hover { opacity: 0.85; transform: scale(1.04); }
+  .cell-thumb-more {
+    width: 36px;
+    height: 36px;
+    border-radius: 4px;
+    background: #e8e6de;
+    color: #6b6860;
+    font-size: 10px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border: 1px solid rgba(0,0,0,0.08);
+    flex-shrink: 0;
+  }
+  .cell-thumb-more:hover { background: #d8d6ce; }
+
   /* ─── ADD BUTTON ─── */
   .add-btn {
     font-family: 'Pretendard', sans-serif;
@@ -928,6 +963,17 @@ const defaultData = {
   '2026-12-25': [{type:'holiday',text:'크리스마스'}],
 };
 
+// Image thumbnail cache: dbId -> [{id, url}]
+const imageCache = {};
+
+async function preloadCellImages(events) {
+  const eventsWithDb = events.filter(ev => ev._dbId && !imageCache[ev._dbId]);
+  await Promise.all(eventsWithDb.map(async ev => {
+    const rows = await sbFetch('event_images?event_id=eq.' + ev._dbId + '&order=created_at.asc&select=id,url');
+    imageCache[ev._dbId] = rows || [];
+  }));
+}
+
 // Custom week-major text/styles set by user
 // key: wStr (date string of week start), value: { text, bold, italic, color }
 const majorCustom = {};
@@ -959,6 +1005,9 @@ async function loadFromDB() {
         snsData[row.date].push({ campaign: row.campaign, type: row.type, text: row.text, _dbId: row.id });
       });
     }
+    // Preload thumbnails for all events with _dbId
+    const allEventsFlat = Object.values(snsData).flat().filter(ev => ev._dbId);
+    await preloadCellImages(allEventsFlat);
   } catch(e) { console.error('loadFromDB error:', e); }
   showLoader(false);
   render();
@@ -1130,6 +1179,44 @@ function render(){
         cell.appendChild(block);
       });
 
+      // Thumbnails: collect all DB events for this day and show cached images
+      const allDayEvents = (snsData[ds] || []).filter(ev => ev._dbId && imageCache[ev._dbId] && imageCache[ev._dbId].length > 0);
+      if (allDayEvents.length > 0) {
+        const thumbWrap = document.createElement('div');
+        thumbWrap.className = 'cell-thumbs';
+        let thumbCount = 0;
+        const maxThumbs = 4;
+
+        allDayEvents.forEach(ev => {
+          const imgs = imageCache[ev._dbId] || [];
+          imgs.forEach((img, ii) => {
+            if (thumbCount >= maxThumbs) return;
+            const evIdx = snsData[ds].indexOf(ev);
+            const t = document.createElement('img');
+            t.className = 'cell-thumb';
+            t.src = img.url;
+            t.loading = 'lazy';
+            t.addEventListener('click', (e) => { e.stopPropagation(); openDetail(ds, evIdx); });
+            thumbWrap.appendChild(t);
+            thumbCount++;
+          });
+        });
+
+        // Count remaining
+        const totalImgs = allDayEvents.reduce((s, ev) => s + (imageCache[ev._dbId]||[]).length, 0);
+        if (totalImgs > maxThumbs) {
+          const more = document.createElement('div');
+          more.className = 'cell-thumb-more';
+          more.textContent = '+' + (totalImgs - maxThumbs);
+          const firstEv = allDayEvents[0];
+          const evIdx = snsData[ds].indexOf(firstEv);
+          more.addEventListener('click', (e) => { e.stopPropagation(); openDetail(ds, evIdx); });
+          thumbWrap.appendChild(more);
+        }
+
+        cell.appendChild(thumbWrap);
+      }
+
       weekRow.appendChild(cell);
     }
 
@@ -1188,6 +1275,10 @@ function toggleEditMode() {
   document.getElementById('detail-cancel-btn').style.display = 'inline-flex';
   document.getElementById('detail-save-btn').style.display = 'inline-flex';
   document.getElementById('detail-modal-title').textContent = '일정 수정';
+  document.getElementById('edit-text-input').onkeydown = (e) => {
+    if (e.key === 'Enter') saveEdit();
+    if (e.key === 'Escape') cancelEdit();
+  };
 }
 
 function cancelEdit() {
@@ -1364,8 +1455,11 @@ async function handleImageUpload(e) {
       loaded++;
       if (loaded === files.length) {
         await loadImages();
+        // Update cell thumbnail cache
+        if (ev._dbId) imageCache[ev._dbId] = _cachedImages.slice();
         _galleryIdx = _cachedImages.length - 1;
         renderGallery();
+        render();
       }
     };
     reader.readAsDataURL(file);
@@ -1381,7 +1475,10 @@ async function deleteImage(idx) {
   }
   if(_galleryIdx >= imgs.length - 1) _galleryIdx = Math.max(0, imgs.length - 2);
   await loadImages();
+  const ev2 = snsData[_detailKey] && snsData[_detailKey][_detailIdx];
+  if (ev2 && ev2._dbId) imageCache[ev2._dbId] = _cachedImages.slice();
   renderGallery();
+  render();
 }
 
 // ─── LIGHTBOX ───
