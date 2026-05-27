@@ -783,7 +783,20 @@
       <!-- VIEW MODE -->
       <div id="detail-view-mode">
         <div id="detail-text" class="detail-text"></div>
-        <div id="detail-memo" style="display:none;margin-top:10px;padding:10px 12px;background:#f7f6f3;border-radius:8px;font-size:13px;color:#6b6860;line-height:1.6;white-space:pre-wrap;"></div>
+        <div id="detail-memo-wrap" style="margin-top:10px;">
+          <!-- memo exists: show text, click to edit -->
+          <div id="detail-memo" style="display:none;padding:10px 12px;background:#f7f6f3;border-radius:8px;font-size:13px;color:#6b6860;line-height:1.6;white-space:pre-wrap;cursor:pointer;transition:background 0.12s;" onclick="openInlineMemo()" title="클릭해서 수정"></div>
+          <!-- no memo: show add button -->
+          <div id="detail-memo-empty" style="display:none;font-size:12px;color:#c0beba;cursor:pointer;padding:2px 0;" onclick="openInlineMemo()">+ 메모 추가</div>
+          <!-- inline editor -->
+          <div id="detail-memo-editor" style="display:none;">
+            <textarea id="detail-memo-input" class="form-input" rows="3" placeholder="메모를 입력하세요" style="resize:vertical;line-height:1.5;width:100%;"></textarea>
+            <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:6px;">
+              <button class="btn btn-ghost" onclick="cancelInlineMemo()" style="font-size:11px;padding:4px 10px;">취소</button>
+              <button class="btn btn-primary" onclick="saveInlineMemo()" style="font-size:11px;padding:4px 10px;">저장</button>
+            </div>
+          </div>
+        </div>
       </div>
       <!-- EDIT MODE -->
       <div id="detail-edit-mode" style="display:none;">
@@ -1363,6 +1376,69 @@ function openSpanDetail(ev) {
   document.getElementById('detail-overlay').dataset.spanId = ev._dbId || '';
 }
 
+// ─── INLINE MEMO ───
+let _prevMemo = '';
+
+function refreshMemoView(memo) {
+  const memoEl    = document.getElementById('detail-memo');
+  const emptyEl   = document.getElementById('detail-memo-empty');
+  const editorEl  = document.getElementById('detail-memo-editor');
+  if (!memoEl) return;
+  editorEl.style.display = 'none';
+  if (memo) {
+    memoEl.textContent = memo;
+    memoEl.style.display = 'block';
+    emptyEl.style.display = 'none';
+  } else {
+    memoEl.style.display = 'none';
+    emptyEl.style.display = 'block';
+  }
+}
+
+function openInlineMemo() {
+  if (document.getElementById('detail-edit-mode').style.display !== 'none') return; // editing mode active
+  const ev = _detailKey && snsData[_detailKey] && snsData[_detailKey][_detailIdx];
+  _prevMemo = ev ? (ev.memo || '') : '';
+  document.getElementById('detail-memo-input').value = _prevMemo;
+  document.getElementById('detail-memo').style.display = 'none';
+  document.getElementById('detail-memo-empty').style.display = 'none';
+  document.getElementById('detail-memo-editor').style.display = 'block';
+  document.getElementById('detail-memo-input').focus();
+}
+
+function cancelInlineMemo() {
+  document.getElementById('detail-memo-editor').style.display = 'none';
+  const ev = _detailKey && snsData[_detailKey] && snsData[_detailKey][_detailIdx];
+  refreshMemoView(ev ? ev.memo : '');
+}
+
+async function saveInlineMemo() {
+  const memoVal = document.getElementById('detail-memo-input').value.trim();
+  let ev = _detailKey && snsData[_detailKey] && snsData[_detailKey][_detailIdx];
+  if (!ev) return;
+
+  // Auto-register in DB if needed
+  if (!ev._dbId) {
+    const dbId = await saveEventToDB({ date: _detailKey, campaign: ev.campaign, type: ev.type, text: ev.text });
+    if (dbId) ev._dbId = dbId;
+  }
+
+  if (ev._dbId) {
+    await sbFetch('events?id=eq.' + ev._dbId, 'PATCH', { memo: memoVal || null }, 'return=minimal');
+  }
+
+  ev.memo = memoVal;
+  document.getElementById('detail-memo-editor').style.display = 'none';
+  refreshMemoView(memoVal);
+}
+
+// Enter to save (Shift+Enter for newline), Escape to cancel
+document.addEventListener('keydown', function(e) {
+  if (document.getElementById('detail-memo-editor').style.display !== 'none') {
+    if (e.key === 'Escape') cancelInlineMemo();
+  }
+});
+
 // ─── REALTIME ───
 sbClient
   .channel('events-changes')
@@ -1446,13 +1522,7 @@ async function openDetail(dateStr, idx) {
   badge.textContent = campLabel + ' · ' + typeLabel;
   badge.className = 'detail-badge ' + (ev.campaign === 'teaser' ? 'lc-teaser' : 'lc-debut');
   document.getElementById('detail-text').textContent = ev.text;
-  const memoEl = document.getElementById('detail-memo');
-  if (ev.memo) {
-    memoEl.textContent = ev.memo;
-    memoEl.style.display = 'block';
-  } else {
-    memoEl.style.display = 'none';
-  }
+  refreshMemoView(ev.memo);
   await renderGallery();
   document.getElementById('detail-overlay').classList.add('open');
 }
