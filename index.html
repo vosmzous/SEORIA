@@ -183,7 +183,7 @@
   .cal-grid {
     border: 1px solid var(--border);
     border-radius: 12px;
-    overflow: visible;
+    overflow: hidden;
     background: var(--surface);
     position: relative;
   }
@@ -219,18 +219,25 @@
     display: flex;
     flex-direction: column;
     gap: 4px;
+    overflow: hidden;
+    min-width: 0;
   }
   .week-label {
     font-family: 'Pretendard', sans-serif;
     font-size: 15px;
     font-weight: 500;
     color: var(--text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .week-major {
     font-size: 15px;
     font-weight: 500;
     color: var(--text-secondary);
     line-height: 1.4;
+    overflow: hidden;
+    word-break: keep-all;
   }
 
   .day-cell {
@@ -243,6 +250,9 @@
     position: relative;
     transition: background 0.1s;
     cursor: pointer;
+    overflow: hidden;
+    min-width: 0;
+    word-break: break-word;
   }
   .day-cell:last-child { border-right: none; }
   .day-cell:hover { background: #f4f3ef; }
@@ -279,6 +289,8 @@
     border-radius: 6px;
     overflow: hidden;
     border: 1px solid transparent;
+    min-width: 0;
+    width: 100%;
   }
   .campaign-block.teaser {
     border-color: #c2e4d0;
@@ -300,6 +312,8 @@
     display: flex;
     flex-direction: column;
     gap: 3px;
+    min-width: 0;
+    overflow: hidden;
   }
   .campaign-items.teaser { background: var(--teaser-bg); }
   .campaign-items.debut  { background: var(--debut-bg); }
@@ -335,6 +349,83 @@
     color: var(--text-muted);
     font-size: 14px;
   }
+
+  /* ─── WEEK MAJOR EDITOR ─── */
+  .week-major {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    overflow: hidden;
+    word-break: keep-all;
+    cursor: pointer;
+    border-radius: 4px;
+    padding: 2px 4px;
+    margin: -2px -4px;
+    transition: background 0.12s;
+    position: relative;
+  }
+  .week-major:hover { background: rgba(0,0,0,0.04); }
+  .week-major-empty {
+    font-size: 12px; color: var(--text-muted);
+    cursor: pointer; padding: 2px 4px; margin: -2px -4px;
+    border-radius: 4px; opacity: 0;
+    transition: opacity 0.12s, background 0.12s;
+    font-style: italic;
+  }
+  .week-label-cell:hover .week-major-empty { opacity: 1; }
+  .week-major-empty:hover { background: rgba(0,0,0,0.04); }
+
+  /* editor popover */
+  .major-editor {
+    display: none;
+    position: fixed;
+    z-index: 9000;
+    background: #fff;
+    border: 1px solid #e4e2da;
+    border-radius: 10px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.14);
+    width: 260px;
+    padding: 10px;
+    animation: modalIn 0.14s ease;
+  }
+  .major-editor.open { display: block; }
+  .editor-toolbar {
+    display: flex; gap: 4px; align-items: center;
+    margin-bottom: 8px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #f0efe9;
+    flex-wrap: wrap;
+  }
+  .editor-tool-btn {
+    width: 28px; height: 28px; border-radius: 6px;
+    border: 1px solid #e4e2da; background: #fff;
+    cursor: pointer; font-size: 13px; font-weight: 600;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.1s; color: #1a1916;
+    flex-shrink: 0;
+  }
+  .editor-tool-btn:hover { background: #f0efe9; }
+  .editor-tool-btn.active { background: #1a1916; color: #fff; border-color: #1a1916; }
+  .editor-color-btn {
+    width: 22px; height: 22px; border-radius: 50%;
+    border: 2px solid transparent; cursor: pointer;
+    flex-shrink: 0; transition: transform 0.1s;
+  }
+  .editor-color-btn:hover { transform: scale(1.15); }
+  .editor-color-btn.active { border-color: #1a1916; }
+  .editor-sep { width: 1px; height: 20px; background: #e4e2da; flex-shrink: 0; }
+  .editor-input {
+    font-family: 'Pretendard', sans-serif;
+    font-size: 13px; width: 100%;
+    border: 1px solid #d0cec4; border-radius: 7px;
+    padding: 7px 10px; outline: none;
+    background: #f7f6f3; color: #1a1916;
+    transition: border-color 0.12s, background 0.12s;
+    margin-bottom: 8px;
+  }
+  .editor-input:focus { border-color: #1a1916; background: #fff; }
+  .editor-footer { display: flex; gap: 6px; justify-content: flex-end; }
 
   /* ─── RESIZE HANDLES ─── */
   .col-resize-handle {
@@ -481,7 +572,14 @@
   }
 
   /* ─── CONTENT TAG CLICKABLE ─── */
-  .content-tag { cursor: pointer; transition: opacity 0.12s; }
+  .content-tag {
+    cursor: pointer; transition: opacity 0.12s;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    display: block;
+    min-width: 0;
+  }
   .content-tag:hover { opacity: 0.72; }
 
   /* ─── MODAL OVERLAY ─── */
@@ -691,6 +789,23 @@
   </div>
 </div>
 
+<!-- WEEK MAJOR EDITOR POPOVER (appended to body, moved via JS) -->
+<div class="major-editor" id="major-editor">
+  <div class="editor-toolbar">
+    <button class="editor-tool-btn" id="et-bold" title="굵게" onclick="toggleEditorFormat('bold')"><b>B</b></button>
+    <button class="editor-tool-btn" id="et-italic" title="기울임" onclick="toggleEditorFormat('italic')"><i>I</i></button>
+    <div class="editor-sep"></div>
+    <button class="editor-color-btn" style="background:#1a1916;" data-color="#1a1916" onclick="setEditorColor(this)" title="검정"></button>
+    <button class="editor-color-btn" style="background:#185FA5;" data-color="#185FA5" onclick="setEditorColor(this)" title="파랑"></button>
+    <button class="editor-color-btn" style="background:#C0392B;" data-color="#C0392B" onclick="setEditorColor(this)" title="빨강"></button>
+  </div>
+  <input type="text" class="editor-input" id="major-editor-input" placeholder="주차 메모 입력...">
+  <div class="editor-footer">
+    <button class="btn btn-ghost" onclick="closeMajorEditor()">취소</button>
+    <button class="btn btn-primary" onclick="saveMajorEdit()">저장</button>
+  </div>
+</div>
+
 <!-- CAL CONTROLS -->
 <div class="cal-controls">
   <div class="month-nav">
@@ -838,6 +953,19 @@ const defaultData = {
   '2026-12-25': [{type:'holiday',text:'크리스마스'}],
 };
 
+// Custom week-major text/styles set by user
+// key: wStr (date string of week start), value: { text, bold, italic, color }
+const majorCustom = {};
+const MAJOR_STORAGE_KEY = 'soria-major-custom';
+try {
+  const saved = JSON.parse(localStorage.getItem(MAJOR_STORAGE_KEY) || '{}');
+  Object.assign(majorCustom, saved);
+} catch(e) {}
+
+function saveMajorCustom() {
+  try { localStorage.setItem(MAJOR_STORAGE_KEY, JSON.stringify(majorCustom)); } catch(e) {}
+}
+
 // snsData starts with default, then we overlay DB events
 const snsData = Object.assign({}, defaultData);
 // dbEventIds maps "date:idx" -> supabase uuid for deletion
@@ -950,7 +1078,35 @@ function render(){
     const wLabel = ms + '월 ' + Math.ceil(ws.getDate()/7) + '주';
     const wCell = document.createElement('div');
     wCell.className = 'week-label-cell';
-    wCell.innerHTML = '<div class="week-label">'+wLabel+'</div>'+(major?'<div class="week-major">'+major+'</div>':'');
+    wCell.style.position = 'relative';
+
+    const wLabelEl = document.createElement('div');
+    wLabelEl.className = 'week-label';
+    wLabelEl.textContent = wLabel;
+    wCell.appendChild(wLabelEl);
+
+    // Determine display text and style
+    const custom = majorCustom[wStr];
+    const displayText = custom ? custom.text : major;
+    const majorEl = document.createElement('div');
+    if (displayText) {
+      majorEl.className = 'week-major';
+      majorEl.textContent = displayText;
+      if (custom) {
+        if (custom.bold)   majorEl.style.fontWeight = '700';
+        if (custom.italic) majorEl.style.fontStyle  = 'italic';
+        if (custom.color)  majorEl.style.color       = custom.color;
+      }
+    } else {
+      majorEl.className = 'week-major-empty';
+      majorEl.textContent = '+ 메모 추가';
+    }
+    majorEl.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openMajorEditor(wStr, major, wCell, majorEl);
+    });
+    wCell.appendChild(majorEl);
+
     weekRow.appendChild(wCell);
 
     for(let i=0;i<5;i++){
@@ -1319,6 +1475,107 @@ async function submitAdd() {
 // close on overlay click
 document.getElementById('detail-overlay').addEventListener('click', function(e){ if(e.target===this) closeDetail(); });
 document.getElementById('add-overlay').addEventListener('click', function(e){ if(e.target===this) closeAdd(); });
+
+// ─── WEEK MAJOR EDITOR ───
+let _editorWStr = null, _editorOriginal = '', _editorBold = false, _editorItalic = false, _editorColor = '#1a1916';
+
+function openMajorEditor(wStr, defaultText, anchorCell, triggerEl) {
+  _editorWStr = wStr;
+  const custom = majorCustom[wStr];
+  _editorBold   = custom ? !!custom.bold   : false;
+  _editorItalic = custom ? !!custom.italic : false;
+  _editorColor  = custom ? (custom.color || '#1a1916') : '#1a1916';
+  _editorOriginal = custom ? custom.text : (defaultText || '');
+
+  const input = document.getElementById('major-editor-input');
+  input.value = _editorOriginal;
+
+  // sync toolbar state
+  document.getElementById('et-bold').classList.toggle('active', _editorBold);
+  document.getElementById('et-italic').classList.toggle('active', _editorItalic);
+  document.querySelectorAll('.editor-color-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.color === _editorColor);
+  });
+
+  // position popover using fixed coords from trigger element
+  const editor = document.getElementById('major-editor');
+  document.body.appendChild(editor); // ensure it's on body for fixed positioning
+  editor.classList.add('open');
+
+  // Calculate position after making visible (to get dimensions)
+  requestAnimationFrame(() => {
+    const rect = triggerEl.getBoundingClientRect();
+    const editorW = 260;
+    const editorH = editor.offsetHeight;
+    const padding = 8;
+
+    let left = rect.left;
+    let top  = rect.bottom + 6;
+
+    // keep within viewport horizontally
+    if (left + editorW > window.innerWidth - padding) {
+      left = window.innerWidth - editorW - padding;
+    }
+    if (left < padding) left = padding;
+
+    // flip upward if not enough space below
+    if (top + editorH > window.innerHeight - padding) {
+      top = rect.top - editorH - 6;
+    }
+
+    editor.style.left = left + 'px';
+    editor.style.top  = top  + 'px';
+  });
+
+  setTimeout(() => input.focus(), 60);
+
+  // close on outside click
+  setTimeout(() => {
+    document.addEventListener('click', _editorOutsideClick);
+  }, 10);
+}
+
+function _editorOutsideClick(e) {
+  const editor = document.getElementById('major-editor');
+  if (!editor.contains(e.target)) {
+    closeMajorEditor();
+  }
+}
+
+function closeMajorEditor() {
+  document.getElementById('major-editor').classList.remove('open');
+  document.removeEventListener('click', _editorOutsideClick);
+  _editorWStr = null;
+}
+
+function toggleEditorFormat(fmt) {
+  if (fmt === 'bold')   { _editorBold   = !_editorBold;   document.getElementById('et-bold').classList.toggle('active', _editorBold); }
+  if (fmt === 'italic') { _editorItalic = !_editorItalic; document.getElementById('et-italic').classList.toggle('active', _editorItalic); }
+}
+
+function setEditorColor(btn) {
+  _editorColor = btn.dataset.color;
+  document.querySelectorAll('.editor-color-btn').forEach(b => b.classList.toggle('active', b === btn));
+}
+
+function saveMajorEdit() {
+  if (!_editorWStr) return;
+  const text = document.getElementById('major-editor-input').value.trim();
+  if (text) {
+    majorCustom[_editorWStr] = { text, bold: _editorBold, italic: _editorItalic, color: _editorColor };
+  } else {
+    delete majorCustom[_editorWStr];
+  }
+  saveMajorCustom();
+  closeMajorEditor();
+  render();
+}
+
+// enter key to save
+document.getElementById('major-editor-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') saveMajorEdit();
+  if (e.key === 'Escape') closeMajorEditor();
+});
 
 // ─── RESIZE ───
 // colWidths: [labelWidth, c1, c2, c3, c4, c5] in px
