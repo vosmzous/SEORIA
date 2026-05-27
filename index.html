@@ -178,12 +178,12 @@
   /* ─── GRID ─── */
   .cal-wrap {
     padding: 0 290px 40px;
-    overflow: visible;
+    overflow: hidden;
   }
   .cal-grid {
     border: 1px solid var(--border);
     border-radius: 12px;
-    overflow: visible;
+    overflow: hidden;
     background: var(--surface);
     position: relative;
   }
@@ -221,9 +221,8 @@
     display: flex;
     flex-direction: column;
     gap: 4px;
-    overflow: visible;
+    overflow: hidden;
     min-width: 0;
-    height: auto;
   }
   .week-label {
     font-family: 'Pretendard', sans-serif;
@@ -247,14 +246,13 @@
     padding: 10px 8px;
     border-right: 1px solid var(--border);
     min-height: 120px;
-    height: auto;
     display: flex;
     flex-direction: column;
     gap: 4px;
     position: relative;
     transition: background 0.1s;
     cursor: pointer;
-    overflow: visible;
+    overflow: hidden;
     min-width: 0;
     word-break: break-word;
   }
@@ -628,9 +626,8 @@
   /* ─── CONTENT TAG CLICKABLE ─── */
   .content-tag {
     cursor: pointer; transition: opacity 0.12s;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    white-space: normal;
+    word-break: keep-all;
     display: block;
     min-width: 0;
   }
@@ -789,6 +786,10 @@
       </div>
       <!-- EDIT MODE -->
       <div id="detail-edit-mode" style="display:none;">
+        <div class="form-row">
+          <label class="form-label">날짜</label>
+          <input type="date" class="form-input" id="edit-date-input">
+        </div>
         <div class="form-row">
           <label class="form-label">캠페인</label>
           <div class="seg-group">
@@ -1050,7 +1051,9 @@ function showLoader(on) {
 }
 
 async function saveEventToDB(ev) {
-  const row = await sbFetch('events', 'POST', { date: ev.date, campaign: ev.campaign, type: ev.type, text: ev.text });
+  const payload = { date: ev.date, campaign: ev.campaign, type: ev.type, text: ev.text };
+  if (ev.dateEnd && ev.dateEnd !== ev.date) payload.date_end = ev.dateEnd;
+  const row = await sbFetch('events', 'POST', payload);
   return row && row[0] ? row[0].id : null;
 }
 
@@ -1306,6 +1309,25 @@ function render(){
 // Initial load from DB — render() is called inside loadFromDB() after data is ready
 loadFromDB();
 
+// ─── SPAN DETAIL ───
+function openSpanDetail(ev) {
+  _detailKey = ev.dateStart;
+  _detailIdx = -1; // span marker
+  const d1 = new Date(ev.dateStart), d2 = new Date(ev.dateEnd);
+  const fmt = (d) => d.getFullYear()+'년 '+(d.getMonth()+1)+'월 '+d.getDate()+'일';
+  document.getElementById('detail-date').textContent = fmt(d1) + ' ~ ' + fmt(d2);
+  const badge = document.getElementById('detail-badge');
+  badge.textContent = (ev.campaign==='teaser'?'티저 캠페인':'데뷔 캠페인');
+  badge.className = 'detail-badge ' + (ev.campaign==='teaser'?'lc-teaser':'lc-debut');
+  document.getElementById('detail-text').textContent = ev.text;
+  document.getElementById('detail-edit-btn').style.display = 'none'; // TODO: edit span
+  _cachedImages = [];
+  document.getElementById('gallery-container').innerHTML = '<label for="gallery-file-input" class="gallery-empty">＋ 사진을 추가해보세요</label>';
+  document.getElementById('detail-overlay').classList.add('open');
+  // store ref for delete
+  document.getElementById('detail-overlay').dataset.spanId = ev._dbId || '';
+}
+
 // ─── REALTIME ───
 sbClient
   .channel('events-changes')
@@ -1411,6 +1433,7 @@ function toggleEditMode() {
   document.getElementById('detail-view-mode').style.display = 'none';
   document.getElementById('detail-edit-mode').style.display = 'block';
   document.getElementById('edit-text-input').value = ev.text;
+  document.getElementById('edit-date-input').value = _detailKey;
 
   // set seg buttons
   setEditCampaign(_editCampaign);
@@ -1451,6 +1474,8 @@ function setEditType(t) {
 
 async function saveEdit() {
   const textVal = document.getElementById('edit-text-input').value.trim();
+  const newDate = document.getElementById('edit-date-input').value;
+  if (!newDate)       { alert('날짜를 선택해주세요.'); return; }
   if (!textVal)       { alert('내용을 입력해주세요.'); return; }
   if (!_editCampaign) { alert('캠페인을 선택해주세요.'); return; }
   if (!_editType)     { alert('유형을 선택해주세요.'); return; }
@@ -1459,37 +1484,59 @@ async function saveEdit() {
   const saveBtn = document.getElementById('detail-save-btn');
   saveBtn.textContent = '저장 중...'; saveBtn.disabled = true;
 
-  // If DB event, update in DB
+  const dateChanged = newDate !== _detailKey;
+
+  // Update in DB
   if (ev._dbId) {
     await sbFetch('events?id=eq.' + ev._dbId, 'PATCH',
-      { campaign: _editCampaign, type: _editType, text: textVal },
+      { date: newDate, campaign: _editCampaign, type: _editType, text: textVal },
       'return=minimal'
     );
   } else {
-    // Register in DB first
-    const dbId = await saveEventToDB({ date: _detailKey, campaign: _editCampaign, type: _editType, text: textVal });
+    const dbId = await saveEventToDB({ date: newDate, campaign: _editCampaign, type: _editType, text: textVal });
     if (dbId) ev._dbId = dbId;
   }
 
-  // Update local
+  // Move to new date if changed
+  if (dateChanged) {
+    snsData[_detailKey].splice(_detailIdx, 1);
+    if (!snsData[_detailKey].length) delete snsData[_detailKey];
+    if (!snsData[newDate]) snsData[newDate] = [];
+    ev.date = newDate;
+    snsData[newDate].push(ev);
+  }
+
+  // Update local fields
   ev.campaign = _editCampaign;
   ev.type     = _editType;
   ev.text     = textVal;
 
   saveBtn.textContent = '저장'; saveBtn.disabled = false;
   cancelEdit();
+  closeDetail();
 
-  // Refresh detail view
-  const badge = document.getElementById('detail-badge');
-  badge.textContent = (ev.campaign==='teaser'?'티저 캠페인':'데뷔 캠페인') + ' · ' + (ev.type==='sns'?'SNS':'바이럴');
-  badge.className = 'detail-badge ' + (ev.campaign==='teaser' ? 'lc-teaser' : 'lc-debut');
-  document.getElementById('detail-text').textContent = ev.text;
+  // Navigate to new date's month if changed
+  if (dateChanged) {
+    const d = new Date(newDate);
+    currentMonth = d.getMonth() + 1;
+    currentYear  = d.getFullYear();
+  }
 
   render();
 }
 
 async function deleteEvent() {
   if(_detailKey === null) return;
+  // Handle span event delete
+  if (_detailIdx === -1) {
+    const spanId = document.getElementById('detail-overlay').dataset.spanId;
+    if (spanId) await deleteEventFromDB(spanId);
+    const idx = spanEvents.findIndex(e => e._dbId === spanId);
+    if (idx !== -1) spanEvents.splice(idx, 1);
+    closeDetail();
+    render();
+    return;
+  }
   const ev = snsData[_detailKey][_detailIdx];
   // Delete images from DB first
   if (ev._dbId) {
@@ -1695,6 +1742,11 @@ function openAdd(dateStr) {
   _addCampaign = null; _addType = null; _addImages = [];
   document.getElementById('add-date').value = dateStr || '';
   document.getElementById('add-text').value = '';
+  document.getElementById('add-is-range').checked = false;
+  document.getElementById('add-date-single').style.display = 'block';
+  document.getElementById('add-date-range').style.display = 'none';
+  document.getElementById('add-date-start').value = dateStr || '';
+  document.getElementById('add-date-end').value = dateStr || '';
   ['seg-teaser','seg-debut','seg-sns','seg-viral'].forEach(id => {
     document.getElementById(id).className = 'seg-btn';
   });
@@ -1743,6 +1795,22 @@ function handleAddImageUpload(e) {
   e.target.value = '';
 }
 
+function toggleDateRange() {
+  const isRange = document.getElementById('add-is-range').checked;
+  document.getElementById('add-date-single').style.display = isRange ? 'none' : 'block';
+  document.getElementById('add-date-range').style.display  = isRange ? 'flex' : 'none';
+  if (isRange) {
+    const cur = document.getElementById('add-date').value;
+    if (cur) { document.getElementById('add-date-start').value = cur; document.getElementById('add-date-end').value = cur; }
+  }
+}
+
+function toggleEditDateRange() {
+  const isRange = document.getElementById('edit-is-range').checked;
+  document.getElementById('edit-date-single').style.display = isRange ? 'none' : 'block';
+  document.getElementById('edit-date-range').style.display  = isRange ? 'flex' : 'none';
+}
+
 function closeAdd() {
   document.getElementById('add-overlay').classList.remove('open');
 }
@@ -1770,7 +1838,12 @@ async function submitAdd() {
   const submitBtn = document.querySelector('#add-overlay .btn-primary');
   if (submitBtn) { submitBtn.textContent = '저장 중...'; submitBtn.disabled = true; }
 
-  const newEv = { campaign: _addCampaign, type: _addType, text: textVal, date: dateVal };
+  const isRange = document.getElementById('add-is-range').checked;
+  const dateStart = isRange ? document.getElementById('add-date-start').value : dateVal;
+  const dateEnd   = isRange ? document.getElementById('add-date-end').value   : dateVal;
+  if (isRange && (!dateStart || !dateEnd)) { alert('시작일과 종료일을 모두 선택해주세요.'); return; }
+  if (isRange && dateStart > dateEnd) { alert('종료일이 시작일보다 빨라요.'); return; }
+  const newEv = { campaign: _addCampaign, type: _addType, text: textVal, date: dateStart, dateEnd: dateEnd };
   const dbId = await saveEventToDB(newEv);
   if (submitBtn) { submitBtn.textContent = '추가하기'; submitBtn.disabled = false; }
   if (dbId) {
@@ -1780,13 +1853,17 @@ async function submitAdd() {
       await sbFetch('event_images', 'POST', { event_id: dbId, url: base64 });
     }
   }
-  if(!snsData[dateVal]) snsData[dateVal] = [];
-  snsData[dateVal].push(newEv);
+  if (isRange && dateStart !== dateEnd) {
+    spanEvents.push({ ...newEv, dateStart, dateEnd, _dbId: newEv._dbId });
+  } else {
+    if(!snsData[dateStart]) snsData[dateStart] = [];
+    snsData[dateStart].push(newEv);
+  }
   _addImages = [];
   closeAdd();
 
   // navigate to the month of the added event
-  const d = new Date(dateVal);
+  const d = new Date(dateStart);
   currentMonth = d.getMonth() + 1;
   currentYear  = d.getFullYear();
   render();
