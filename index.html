@@ -491,6 +491,20 @@
   }
   .cell-thumb-more:hover { background: #d8d6ce; }
 
+  /* ─── DRAG AND DROP ─── */
+  .content-tag[draggable="true"] {
+    cursor: grab;
+  }
+  .content-tag.dragging {
+    opacity: 0.4;
+    cursor: grabbing;
+  }
+  .day-cell.drag-over {
+    background: #eef4fb !important;
+    outline: 2px dashed #85B7EB;
+    outline-offset: -2px;
+  }
+
   /* ─── ADD BUTTON ─── */
   .add-btn {
     font-family: 'Pretendard', sans-serif;
@@ -1150,6 +1164,25 @@ function render(){
           if (e.target !== cell && e.target !== dn) return; // only blank area
           openAdd(ds);
         });
+        cell.addEventListener('dragover', function(e) {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+          cell.classList.add('drag-over');
+        });
+        cell.addEventListener('dragleave', function(e) {
+          if (!cell.contains(e.relatedTarget)) cell.classList.remove('drag-over');
+        });
+        (function(toDate){
+          cell.addEventListener('drop', function(e) {
+            e.preventDefault();
+            cell.classList.remove('drag-over');
+            try {
+              const { fromDate, evIdx } = JSON.parse(e.dataTransfer.getData('text/plain'));
+              if (fromDate === toDate) return;
+              moveEvent(fromDate, evIdx, toDate);
+            } catch(err) { console.error(err); }
+          });
+        })(ds);
       }
 
       const dn = document.createElement('div');
@@ -1187,7 +1220,21 @@ function render(){
           const tag = document.createElement('div');
           tag.className = 'content-tag tag-'+camp+'-'+ev.type;
           tag.innerHTML = '<div class="dot"></div>' + ev.text;
-          (function(dateStr, evIdx){ tag.addEventListener('click', function(){ openDetail(dateStr, evIdx); }); })(ds, snsData[ds].indexOf(ev));
+          tag.draggable = true;
+          const evIdx = snsData[ds].indexOf(ev);
+          (function(dateStr, idx){
+            tag.addEventListener('click', function(){ openDetail(dateStr, idx); });
+            tag.addEventListener('dragstart', function(e){
+              e.stopPropagation();
+              tag.classList.add('dragging');
+              e.dataTransfer.effectAllowed = 'move';
+              e.dataTransfer.setData('text/plain', JSON.stringify({ fromDate: dateStr, evIdx: idx }));
+            });
+            tag.addEventListener('dragend', function(){
+              tag.classList.remove('dragging');
+              document.querySelectorAll('.day-cell.drag-over').forEach(c => c.classList.remove('drag-over'));
+            });
+          })(ds, evIdx);
           items.appendChild(tag);
         });
 
@@ -1195,8 +1242,8 @@ function render(){
         cell.appendChild(block);
       });
 
-      // Thumbnails: collect all DB events for this day and show cached images
-      const allDayEvents = (snsData[ds] || []).filter(ev => ev._dbId && imageCache[ev._dbId] && imageCache[ev._dbId].length > 0);
+      // Thumbnails: only show for events visible under current filter
+      const allDayEvents = (snsData[ds] || []).filter(ev => ev._dbId && imageCache[ev._dbId] && imageCache[ev._dbId].length > 0 && shouldShow(ev));
       if (allDayEvents.length > 0) {
         const thumbWrap = document.createElement('div');
         thumbWrap.className = 'cell-thumbs';
@@ -1369,6 +1416,35 @@ async function deleteEvent() {
   snsData[_detailKey].splice(_detailIdx, 1);
   if(!snsData[_detailKey].length) delete snsData[_detailKey];
   closeDetail();
+  render();
+}
+
+// ─── DRAG & DROP MOVE ───
+async function moveEvent(fromDate, evIdx, toDate) {
+  const ev = snsData[fromDate] && snsData[fromDate][evIdx];
+  if (!ev) return;
+
+  // Update DB
+  if (ev._dbId) {
+    await sbFetch('events?id=eq.' + ev._dbId, 'PATCH', { date: toDate }, 'return=minimal');
+  } else {
+    // Register in DB first
+    const dbId = await saveEventToDB({ date: toDate, campaign: ev.campaign, type: ev.type, text: ev.text });
+    if (dbId) ev._dbId = dbId;
+  }
+
+  // Move in local snsData
+  ev.date = toDate;
+  snsData[fromDate].splice(evIdx, 1);
+  if (!snsData[fromDate].length) delete snsData[fromDate];
+  if (!snsData[toDate]) snsData[toDate] = [];
+  snsData[toDate].push(ev);
+
+  // Move image cache
+  if (ev._dbId && imageCache[ev._dbId]) {
+    // cache stays keyed by _dbId so no change needed
+  }
+
   render();
 }
 
