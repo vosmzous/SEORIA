@@ -731,6 +731,7 @@
   .seg-btn.sel-sns    { background: #d8ecf8; color: #1a4a7a; border-color: #a8cce4; font-weight: 500; }
   .seg-btn.sel-viral  { background: #fde8c8; color: #b06d1a; border-color: #e8c090; font-weight: 500; }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 
@@ -936,6 +937,7 @@
 <script>
 const SUPABASE_URL = 'https://cvqglkeqzernczmwvtxx.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN2cWdsa2VxemVybmN6bXd2dHh4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4MjE4MTEsImV4cCI6MjA5NTM5NzgxMX0.lahOFuqqRhnPpozzyoDIhSpZoUzK2kTTbEGTckpiB3w';
+const sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 async function sbFetch(path, method = 'GET', body = null, prefer = 'return=representation') {
   const opts = {
@@ -1103,6 +1105,13 @@ function render(){
   const lastDay  = new Date(currentYear, currentMonth, 0);
   let dow = firstDay.getDay(); dow = dow===0?6:dow-1;
   let ws = new Date(firstDay); ws.setDate(firstDay.getDate()-dow);
+
+  // Skip first week if Mon-Fri are all in previous month (1st falls on a weekend, but we only show Mon-Fri)
+  // Since we show Mon-Fri only, skip if the Friday of the first week is still in the prev month
+  const wsFri = new Date(ws); wsFri.setDate(ws.getDate()+4);
+  if (wsFri.getMonth()+1 < currentMonth || (wsFri.getFullYear() < currentYear)) {
+    ws.setDate(ws.getDate()+7);
+  }
 
   while(ws <= lastDay){
     const weekRow = document.createElement('div');
@@ -1290,6 +1299,74 @@ function render(){
 
 // Initial load from DB — render() is called inside loadFromDB() after data is ready
 loadFromDB();
+
+// ─── REALTIME ───
+sbClient
+  .channel('events-changes')
+  .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'events' }, async (payload) => {
+    const row = payload.new;
+    if (!snsData[row.date]) snsData[row.date] = [];
+    // Avoid duplicate if we just added it ourselves
+    const exists = snsData[row.date].some(ev => ev._dbId === row.id);
+    if (!exists) {
+      snsData[row.date].push({ campaign: row.campaign, type: row.type, text: row.text, _dbId: row.id });
+      showToast('새 일정이 추가됐어요');
+      render();
+    }
+  })
+  .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'events' }, async (payload) => {
+    const row = payload.new;
+    // Find and update local event
+    for (const date of Object.keys(snsData)) {
+      const idx = snsData[date].findIndex(ev => ev._dbId === row.id);
+      if (idx !== -1) {
+        const ev = snsData[date][idx];
+        if (date !== row.date) {
+          // Date changed (drag & drop by another user)
+          snsData[date].splice(idx, 1);
+          if (!snsData[date].length) delete snsData[date];
+          if (!snsData[row.date]) snsData[row.date] = [];
+          snsData[row.date].push({ campaign: row.campaign, type: row.type, text: row.text, _dbId: row.id });
+        } else {
+          ev.campaign = row.campaign;
+          ev.type = row.type;
+          ev.text = row.text;
+        }
+        showToast('일정이 수정됐어요');
+        render();
+        break;
+      }
+    }
+  })
+  .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'events' }, (payload) => {
+    const id = payload.old.id;
+    for (const date of Object.keys(snsData)) {
+      const idx = snsData[date].findIndex(ev => ev._dbId === id);
+      if (idx !== -1) {
+        snsData[date].splice(idx, 1);
+        if (!snsData[date].length) delete snsData[date];
+        showToast('일정이 삭제됐어요');
+        render();
+        break;
+      }
+    }
+  })
+  .subscribe();
+
+// ─── TOAST ───
+function showToast(msg) {
+  let toast = document.getElementById('realtime-toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'realtime-toast';
+    toast.style.cssText = 'position:fixed;bottom:28px;left:50%;transform:translateX(-50%);background:#1a1916;color:#fff;font-family:Pretendard,sans-serif;font-size:13px;font-weight:500;padding:10px 20px;border-radius:99px;z-index:99999;opacity:0;transition:opacity 0.2s;pointer-events:none;white-space:nowrap;';
+    document.body.appendChild(toast);
+  }
+  toast.textContent = msg;
+  toast.style.opacity = '1';
+  clearTimeout(toast._timer);
+  toast._timer = setTimeout(() => { toast.style.opacity = '0'; }, 2500);
+}
 
 // ─── DETAIL MODAL ───
 let _detailKey = null, _detailIdx = null;
