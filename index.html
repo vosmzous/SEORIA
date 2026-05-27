@@ -866,9 +866,12 @@
     <button class="editor-color-btn" style="background:#C0392B;" data-color="#C0392B" onclick="setEditorColor(this)" title="빨강"></button>
   </div>
   <input type="text" class="editor-input" id="major-editor-input" placeholder="주차 메모 입력...">
-  <div class="editor-footer">
-    <button class="btn btn-ghost" onclick="closeMajorEditor()">취소</button>
-    <button class="btn btn-primary" onclick="saveMajorEdit()">저장</button>
+  <div class="editor-footer" style="justify-content:space-between;">
+    <button class="btn btn-danger" id="et-delete" onclick="deleteMajorItem()" style="display:none;">삭제</button>
+    <div style="display:flex;gap:6px;">
+      <button class="btn btn-ghost" onclick="closeMajorEditor()">취소</button>
+      <button class="btn btn-primary" onclick="saveMajorEdit()">저장</button>
+    </div>
   </div>
 </div>
 
@@ -1098,27 +1101,33 @@ function render(){
     wLabelEl.textContent = wLabel;
     wCell.appendChild(wLabelEl);
 
-    // Determine display text and style
-    const custom = majorCustom[wStr];
-    const displayText = custom ? custom.text : major;
-    const majorEl = document.createElement('div');
-    if (displayText) {
+    // Render multiple major notes
+    const customs = majorCustom[wStr] || [];
+    // Always show default majorMap text as first item if no customs
+    if (customs.length === 0 && major) {
+      const majorEl = document.createElement('div');
       majorEl.className = 'week-major';
-      majorEl.textContent = displayText;
-      if (custom) {
-        if (custom.bold)   majorEl.style.fontWeight = '700';
-        if (custom.italic) majorEl.style.fontStyle  = 'italic';
-        if (custom.color)  majorEl.style.color       = custom.color;
-      }
+      majorEl.textContent = major;
+      majorEl.addEventListener('click', (e) => { e.stopPropagation(); openMajorEditor(wStr, major, wCell, majorEl, -1); });
+      wCell.appendChild(majorEl);
     } else {
-      majorEl.className = 'week-major-empty';
-      majorEl.textContent = '+ 메모 추가';
+      customs.forEach((item, idx) => {
+        const majorEl = document.createElement('div');
+        majorEl.className = 'week-major';
+        majorEl.textContent = item.text;
+        if (item.bold)   majorEl.style.fontWeight = '700';
+        if (item.italic) majorEl.style.fontStyle  = 'italic';
+        if (item.color)  majorEl.style.color       = item.color;
+        majorEl.addEventListener('click', (e) => { e.stopPropagation(); openMajorEditor(wStr, '', wCell, majorEl, idx); });
+        wCell.appendChild(majorEl);
+      });
     }
-    majorEl.addEventListener('click', (e) => {
-      e.stopPropagation();
-      openMajorEditor(wStr, major, wCell, majorEl);
-    });
-    wCell.appendChild(majorEl);
+    // Always show "+ 메모 추가" button on hover
+    const addNoteEl = document.createElement('div');
+    addNoteEl.className = 'week-major-empty';
+    addNoteEl.textContent = '+ 메모 추가';
+    addNoteEl.addEventListener('click', (e) => { e.stopPropagation(); openMajorEditor(wStr, '', wCell, addNoteEl, null); });
+    wCell.appendChild(addNoteEl);
 
     weekRow.appendChild(wCell);
 
@@ -1671,16 +1680,27 @@ document.addEventListener('paste', async function(e) {
 // ─── WEEK MAJOR EDITOR ───
 let _editorWStr = null, _editorOriginal = '', _editorBold = false, _editorItalic = false, _editorColor = '#1a1916';
 
-function openMajorEditor(wStr, defaultText, anchorCell, triggerEl) {
+let _editorItemIdx = null; // null = new, -1 = default (convert to new), >= 0 = edit existing
+
+function openMajorEditor(wStr, defaultText, anchorCell, triggerEl, itemIdx) {
   _editorWStr = wStr;
-  const custom = majorCustom[wStr];
-  _editorBold   = custom ? !!custom.bold   : false;
-  _editorItalic = custom ? !!custom.italic : false;
-  _editorColor  = custom ? (custom.color || '#1a1916') : '#1a1916';
-  _editorOriginal = custom ? custom.text : (defaultText || '');
+  _editorItemIdx = itemIdx;
+  const customs = majorCustom[wStr] || [];
+  let item = null;
+  if (itemIdx !== null && itemIdx >= 0) item = customs[itemIdx];
+  else if (itemIdx === -1) item = { text: defaultText, bold: false, italic: false, color: '#1a1916' };
+
+  _editorBold   = item ? !!item.bold   : false;
+  _editorItalic = item ? !!item.italic : false;
+  _editorColor  = item ? (item.color || '#1a1916') : '#1a1916';
+  _editorOriginal = item ? item.text : '';
 
   const input = document.getElementById('major-editor-input');
   input.value = _editorOriginal;
+
+  // show delete button only for existing items
+  const delBtn = document.getElementById('et-delete');
+  if (delBtn) delBtn.style.display = (itemIdx !== null) ? 'inline-flex' : 'none';
 
   // sync toolbar state
   document.getElementById('et-bold').classList.toggle('active', _editorBold);
@@ -1753,11 +1773,33 @@ function setEditorColor(btn) {
 function saveMajorEdit() {
   if (!_editorWStr) return;
   const text = document.getElementById('major-editor-input').value.trim();
-  if (text) {
-    majorCustom[_editorWStr] = { text, bold: _editorBold, italic: _editorItalic, color: _editorColor };
+  if (!majorCustom[_editorWStr]) majorCustom[_editorWStr] = [];
+  const customs = majorCustom[_editorWStr];
+
+  if (_editorItemIdx === null || _editorItemIdx === -1) {
+    // Add new item
+    if (text) customs.push({ text, bold: _editorBold, italic: _editorItalic, color: _editorColor });
   } else {
-    delete majorCustom[_editorWStr];
+    // Edit existing
+    if (text) {
+      customs[_editorItemIdx] = { text, bold: _editorBold, italic: _editorItalic, color: _editorColor };
+    } else {
+      customs.splice(_editorItemIdx, 1);
+    }
   }
+  if (customs.length === 0) delete majorCustom[_editorWStr];
+  saveMajorCustom();
+  closeMajorEditor();
+  render();
+}
+
+function deleteMajorItem() {
+  if (!_editorWStr || _editorItemIdx === null) return;
+  if (_editorItemIdx === -1) { closeMajorEditor(); render(); return; }
+  const customs = majorCustom[_editorWStr] || [];
+  customs.splice(_editorItemIdx, 1);
+  if (customs.length === 0) delete majorCustom[_editorWStr];
+  else majorCustom[_editorWStr] = customs;
   saveMajorCustom();
   closeMajorEditor();
   render();
