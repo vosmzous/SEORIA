@@ -1828,21 +1828,21 @@ function selectType(t) {
 }
 
 async function submitAdd() {
-  const dateVal = document.getElementById('add-date').value;
   const textVal = document.getElementById('add-text').value.trim();
-  if(!dateVal)       { alert('날짜를 선택해주세요.'); return; }
+  const isRange = document.getElementById('add-is-range').checked;
+  const dateVal = document.getElementById('add-date').value;
+  const dateStart = isRange ? document.getElementById('add-date-start').value : dateVal;
+  const dateEnd   = isRange ? document.getElementById('add-date-end').value   : dateVal;
+
+  if(!dateStart)     { alert('날짜를 선택해주세요.'); return; }
+  if(isRange && !dateEnd) { alert('종료일을 선택해주세요.'); return; }
+  if(isRange && dateStart > dateEnd) { alert('종료일이 시작일보다 빨라요.'); return; }
   if(!_addCampaign)  { alert('캠페인을 선택해주세요.'); return; }
   if(!_addType)      { alert('유형을 선택해주세요.'); return; }
   if(!textVal)       { alert('내용을 입력해주세요.'); return; }
 
   const submitBtn = document.querySelector('#add-overlay .btn-primary');
   if (submitBtn) { submitBtn.textContent = '저장 중...'; submitBtn.disabled = true; }
-
-  const isRange = document.getElementById('add-is-range').checked;
-  const dateStart = isRange ? document.getElementById('add-date-start').value : dateVal;
-  const dateEnd   = isRange ? document.getElementById('add-date-end').value   : dateVal;
-  if (isRange && (!dateStart || !dateEnd)) { alert('시작일과 종료일을 모두 선택해주세요.'); return; }
-  if (isRange && dateStart > dateEnd) { alert('종료일이 시작일보다 빨라요.'); return; }
   const newEv = { campaign: _addCampaign, type: _addType, text: textVal, date: dateStart, dateEnd: dateEnd };
   const dbId = await saveEventToDB(newEv);
   if (submitBtn) { submitBtn.textContent = '추가하기'; submitBtn.disabled = false; }
