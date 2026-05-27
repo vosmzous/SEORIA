@@ -919,23 +919,16 @@ async function loadFromDB() {
   showLoader(true);
   try {
     const rows = await sbFetch('events?select=*&order=created_at.asc');
-    if (!rows) { showLoader(false); return; }
-    // Clear non-holiday, non-default entries added from DB
-    for (const key of Object.keys(dbEventIds)) delete dbEventIds[key];
-    // Re-apply DB rows on top of defaultData
-    // First reset snsData to defaultData
-    for (const k of Object.keys(snsData)) {
-      snsData[k] = (defaultData[k] || []).filter(e => e.type === 'holiday');
-      if (!snsData[k].length) delete snsData[k];
-    }
-    // Restore defaults fully
+    // Reset snsData to holidays only
+    for (const k of Object.keys(snsData)) delete snsData[k];
     Object.assign(snsData, JSON.parse(JSON.stringify(defaultData)));
-    // Now add DB rows
-    rows.forEach(row => {
-      if (!snsData[row.date]) snsData[row.date] = [];
-      snsData[row.date].push({ campaign: row.campaign, type: row.type, text: row.text, _dbId: row.id });
-    });
-  } catch(e) { console.error(e); }
+    if (rows && rows.length) {
+      rows.forEach(row => {
+        if (!snsData[row.date]) snsData[row.date] = [];
+        snsData[row.date].push({ campaign: row.campaign, type: row.type, text: row.text, _dbId: row.id });
+      });
+    }
+  } catch(e) { console.error('loadFromDB error:', e); }
   showLoader(false);
   render();
 }
@@ -1114,7 +1107,7 @@ function render(){
   }
 }
 
-// Initial load from DB
+// Initial load from DB — render() is called inside loadFromDB() after data is ready
 loadFromDB();
 
 // ─── DETAIL MODAL ───
@@ -1624,11 +1617,11 @@ function startRowResize(e, rowIdx, labelCell) {
   document.addEventListener('mouseup', onUp);
 }
 
-// Re-attach handles after each render
-const _originalRender = render;
-window._calRender = _originalRender;
+// Re-attach resize handles after each render
+// Patch render() to also apply resize state after each call
+const _origRender = render;
 render = function() {
-  window._calRender();
+  _origRender();
   requestAnimationFrame(() => {
     applyColWidths();
     applyRowHeights();
