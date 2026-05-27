@@ -1084,9 +1084,16 @@ async function loadFromDB() {
     for (const k of Object.keys(snsData)) delete snsData[k];
     Object.assign(snsData, JSON.parse(JSON.stringify(defaultData)));
     if (rows && rows.length) {
+      spanEvents.length = 0;
       rows.forEach(row => {
-        if (!snsData[row.date]) snsData[row.date] = [];
-        snsData[row.date].push({ campaign: row.campaign, type: row.type, text: row.text, _dbId: row.id });
+        const ev = { campaign: row.campaign, type: row.type, text: row.text, memo: row.memo || '', _dbId: row.id, date: row.date, dateEnd: row.date_end || row.date };
+        if (row.date_end && row.date_end !== row.date) {
+          // span event
+          spanEvents.push({ ...ev, dateStart: row.date, dateEnd: row.date_end });
+        } else {
+          if (!snsData[row.date]) snsData[row.date] = [];
+          snsData[row.date].push(ev);
+        }
       });
     }
     // Preload thumbnails for all events with _dbId
@@ -1102,7 +1109,8 @@ function showLoader(on) {
 }
 
 async function saveEventToDB(ev) {
-  const payload = { date: ev.date, campaign: ev.campaign, type: ev.type, text: ev.text, memo: ev.memo || null };
+  const payload = { date: ev.date, campaign: ev.campaign, type: ev.type, text: ev.text };
+  if (ev.memo) payload.memo = ev.memo;
   if (ev.dateEnd && ev.dateEnd !== ev.date) payload.date_end = ev.dateEnd;
   const row = await sbFetch('events', 'POST', payload);
   return row && row[0] ? row[0].id : null;
