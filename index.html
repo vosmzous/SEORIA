@@ -178,12 +178,14 @@
   /* ─── GRID ─── */
   .cal-wrap {
     padding: 0 290px 40px;
+    overflow: hidden;
   }
   .cal-grid {
     border: 1px solid var(--border);
     border-radius: 12px;
-    overflow: hidden;
+    overflow: visible;
     background: var(--surface);
+    position: relative;
   }
   .cal-head {
     display: grid;
@@ -240,10 +242,11 @@
     gap: 4px;
     position: relative;
     transition: background 0.1s;
+    cursor: pointer;
   }
   .day-cell:last-child { border-right: none; }
-  .day-cell:hover { background: #fafaf8; }
-  .day-cell.outside { opacity: 0.35; }
+  .day-cell:hover { background: #f4f3ef; }
+  .day-cell.outside { opacity: 0.35; cursor: default; }
 
   .day-num {
     font-family: 'Pretendard', sans-serif;
@@ -332,6 +335,35 @@
     color: var(--text-muted);
     font-size: 14px;
   }
+
+  /* ─── RESIZE HANDLES ─── */
+  .col-resize-handle {
+    position: absolute;
+    top: 0; right: -3px;
+    width: 6px; height: 100%;
+    cursor: col-resize;
+    z-index: 10;
+    background: transparent;
+    transition: background 0.15s;
+  }
+  .col-resize-handle:hover, .col-resize-handle.dragging {
+    background: rgba(26,25,22,0.12);
+  }
+  .row-resize-handle {
+    position: absolute;
+    bottom: -3px; left: 0;
+    width: 100%; height: 6px;
+    cursor: row-resize;
+    z-index: 10;
+    background: transparent;
+    transition: background 0.15s;
+  }
+  .row-resize-handle:hover, .row-resize-handle.dragging {
+    background: rgba(26,25,22,0.12);
+  }
+  .cal-head { position: relative; }
+  .cal-head-cell { position: relative; }
+  .week-label-cell { position: relative; }
 
   /* ─── ADD BUTTON ─── */
   .add-btn {
@@ -571,7 +603,7 @@
     <button class="filter-btn"        id="f-sns"   onclick="setFilter('sns')">SNS만</button>
     <button class="filter-btn"        id="f-viral" onclick="setFilter('viral')">바이럴만</button>
   </div>
-  <button class="add-btn" onclick="openAdd()">＋ 일정 추가</button>
+  <button class="add-btn" onclick="openAdd(null)">＋ 일정 추가</button>
 </header>
 
 <!-- LIGHTBOX -->
@@ -620,7 +652,7 @@
       <div class="modal-title">일정 추가</div>
       <button class="modal-close" onclick="closeAdd()">&#x2715;</button>
     </div>
-    <div class="modal-body">
+    <div class="modal-body" style="max-height:70vh;overflow-y:auto;">
       <div class="form-row">
         <label class="form-label">날짜</label>
         <input type="date" class="form-input" id="add-date">
@@ -642,6 +674,14 @@
       <div class="form-row">
         <label class="form-label">내용</label>
         <input type="text" class="form-input" id="add-text" placeholder="일정 내용을 입력하세요">
+      </div>
+      <div class="form-row" style="margin-bottom:0;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+          <span class="form-label" style="margin-bottom:0;">사진 (선택)</span>
+          <label class="gallery-upload-btn" for="add-file-input">+ 사진 추가</label>
+        </div>
+        <input type="file" id="add-file-input" accept="image/*" multiple style="display:none" onchange="handleAddImageUpload(event)">
+        <div id="add-image-preview"></div>
       </div>
     </div>
     <div class="modal-footer">
@@ -920,6 +960,12 @@ function render(){
 
       const cell = document.createElement('div');
       cell.className = 'day-cell' + (inMonth ? '' : ' outside');
+      if (inMonth) {
+        cell.addEventListener('click', function(e) {
+          if (e.target !== cell && e.target !== dn) return; // only blank area
+          openAdd(ds);
+        });
+      }
 
       const dn = document.createElement('div');
       dn.className = 'day-num' + (ds===today?' today':'');
@@ -1167,15 +1213,58 @@ document.getElementById('lightbox').addEventListener('click', function(e){
 // ─── ADD MODAL ───
 let _addCampaign = null, _addType = null;
 
-function openAdd() {
-  _addCampaign = null; _addType = null;
-  document.getElementById('add-date').value = '';
+let _addImages = []; // pending images before event is saved
+
+function openAdd(dateStr) {
+  _addCampaign = null; _addType = null; _addImages = [];
+  document.getElementById('add-date').value = dateStr || '';
   document.getElementById('add-text').value = '';
   ['seg-teaser','seg-debut','seg-sns','seg-viral'].forEach(id => {
-    const el = document.getElementById(id);
-    el.className = 'seg-btn';
+    document.getElementById(id).className = 'seg-btn';
   });
+  renderAddImagePreview();
   document.getElementById('add-overlay').classList.add('open');
+}
+
+function renderAddImagePreview() {
+  const wrap = document.getElementById('add-image-preview');
+  if (!wrap) return;
+  if (_addImages.length === 0) {
+    wrap.innerHTML = '<label for="add-file-input" class="gallery-empty" style="display:block;">＋ 사진을 추가해보세요</label>';
+    return;
+  }
+  wrap.innerHTML = '';
+  const grid = document.createElement('div');
+  grid.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;';
+  _addImages.forEach((src, i) => {
+    const wrap2 = document.createElement('div');
+    wrap2.style.cssText = 'position:relative;width:80px;height:80px;border-radius:6px;overflow:hidden;background:#f0efe9;flex-shrink:0;';
+    const img = document.createElement('img');
+    img.src = src;
+    img.style.cssText = 'width:100%;height:100%;object-fit:cover;';
+    const del = document.createElement('button');
+    del.innerHTML = '&#x2715;';
+    del.style.cssText = 'position:absolute;top:3px;right:3px;width:18px;height:18px;border-radius:50%;background:rgba(0,0,0,0.45);color:#fff;border:none;cursor:pointer;font-size:10px;display:flex;align-items:center;justify-content:center;';
+    del.onclick = () => { _addImages.splice(i, 1); renderAddImagePreview(); };
+    wrap2.appendChild(img); wrap2.appendChild(del);
+    grid.appendChild(wrap2);
+  });
+  wrap.appendChild(grid);
+}
+
+function handleAddImageUpload(e) {
+  const files = Array.from(e.target.files);
+  let loaded = 0;
+  files.forEach(file => {
+    const reader = new FileReader();
+    reader.onload = (re) => {
+      _addImages.push(re.target.result);
+      loaded++;
+      if (loaded === files.length) renderAddImagePreview();
+    };
+    reader.readAsDataURL(file);
+  });
+  e.target.value = '';
 }
 
 function closeAdd() {
@@ -1204,9 +1293,20 @@ async function submitAdd() {
 
   const newEv = { campaign: _addCampaign, type: _addType, text: textVal, date: dateVal };
   const dbId = await saveEventToDB(newEv);
-  if (dbId) newEv._dbId = dbId;
+  if (dbId) {
+    newEv._dbId = dbId;
+    // Upload pending images
+    for (const base64 of _addImages) {
+      await sbFetch('event_images', {
+        method: 'POST',
+        prefer: 'return=representation',
+        body: JSON.stringify({ event_id: dbId, url: base64 })
+      });
+    }
+  }
   if(!snsData[dateVal]) snsData[dateVal] = [];
   snsData[dateVal].push(newEv);
+  _addImages = [];
   closeAdd();
 
   // navigate to the month of the added event
@@ -1219,6 +1319,126 @@ async function submitAdd() {
 // close on overlay click
 document.getElementById('detail-overlay').addEventListener('click', function(e){ if(e.target===this) closeDetail(); });
 document.getElementById('add-overlay').addEventListener('click', function(e){ if(e.target===this) closeAdd(); });
+
+// ─── RESIZE ───
+// colWidths: [labelWidth, c1, c2, c3, c4, c5] in px
+// rowHeights: [weekIdx] in px
+const COL_COUNT = 6; // label + 5 days
+const COL_MIN = 60;
+const ROW_MIN = 60;
+let colWidths = null; // lazily initialized
+let rowHeights = {}; // weekIdx -> px
+
+function getInitialColWidths() {
+  const grid = document.querySelector('.cal-head');
+  if (!grid) return [140, 0, 0, 0, 0, 0];
+  const totalW = grid.offsetWidth;
+  const labelW = 140;
+  const dayW = (totalW - labelW) / 5;
+  return [labelW, dayW, dayW, dayW, dayW, dayW];
+}
+
+function applyColWidths() {
+  if (!colWidths) colWidths = getInitialColWidths();
+  const tpl = colWidths.map(w => w + 'px').join(' ');
+  document.querySelectorAll('.cal-head, .cal-week').forEach(row => {
+    row.style.gridTemplateColumns = tpl;
+  });
+}
+
+function applyRowHeights() {
+  document.querySelectorAll('.cal-week').forEach((row, i) => {
+    if (rowHeights[i] !== undefined) {
+      row.querySelectorAll('.day-cell, .week-label-cell').forEach(cell => {
+        cell.style.minHeight = rowHeights[i] + 'px';
+      });
+    }
+  });
+}
+
+function addResizeHandles() {
+  // Column resize handles on header cells
+  document.querySelectorAll('.cal-head-cell').forEach((cell, colIdx) => {
+    // skip last col (no right border to drag)
+    if (colIdx === COL_COUNT - 1) return;
+    const handle = document.createElement('div');
+    handle.className = 'col-resize-handle';
+    handle.addEventListener('mousedown', e => startColResize(e, colIdx));
+    cell.appendChild(handle);
+  });
+
+  // Row resize handles on week-label cells
+  document.querySelectorAll('.week-label-cell').forEach((cell, rowIdx) => {
+    const handle = document.createElement('div');
+    handle.className = 'row-resize-handle';
+    handle.addEventListener('mousedown', e => startRowResize(e, rowIdx, cell));
+    cell.appendChild(handle);
+  });
+}
+
+function startColResize(e, colIdx) {
+  e.preventDefault();
+  e.stopPropagation();
+  if (!colWidths) colWidths = getInitialColWidths();
+  const startX = e.clientX;
+  const startW = colWidths[colIdx + 1]; // dragging right edge of colIdx, affects colIdx+1 too
+  const startLeft = colWidths[colIdx];
+  const handle = e.target;
+  handle.classList.add('dragging');
+
+  function onMove(ev) {
+    const delta = ev.clientX - startX;
+    const newLeft = Math.max(COL_MIN, startLeft + delta);
+    colWidths[colIdx] = newLeft; // actually adjust this col's own width
+    // colIdx 0 = label col, colIdx 1-5 = day cols
+    applyColWidths();
+  }
+  function onUp() {
+    handle.classList.remove('dragging');
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+function startRowResize(e, rowIdx, labelCell) {
+  e.preventDefault();
+  e.stopPropagation();
+  const row = labelCell.closest('.cal-week');
+  const startY = e.clientY;
+  const startH = row.offsetHeight;
+  const handle = e.target;
+  handle.classList.add('dragging');
+
+  function onMove(ev) {
+    const delta = ev.clientY - startY;
+    const newH = Math.max(ROW_MIN, startH + delta);
+    rowHeights[rowIdx] = newH;
+    row.querySelectorAll('.day-cell, .week-label-cell').forEach(cell => {
+      cell.style.minHeight = newH + 'px';
+    });
+  }
+  function onUp() {
+    handle.classList.remove('dragging');
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+// Re-attach handles after each render
+const _originalRender = render;
+window._calRender = _originalRender;
+render = function() {
+  window._calRender();
+  requestAnimationFrame(() => {
+    applyColWidths();
+    applyRowHeights();
+    addResizeHandles();
+  });
+};
 </script>
 </body>
 </html>
