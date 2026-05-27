@@ -1621,6 +1621,53 @@ async function submitAdd() {
 document.getElementById('detail-overlay').addEventListener('click', function(e){ if(e.target===this) closeDetail(); });
 document.getElementById('add-overlay').addEventListener('click', function(e){ if(e.target===this) closeAdd(); });
 
+// ─── PASTE IMAGE ───
+document.addEventListener('paste', async function(e) {
+  const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+  const imageItems = Array.from(items).filter(item => item.type.startsWith('image/'));
+  if (!imageItems.length) return;
+
+  // Detail modal open → add to existing event
+  if (document.getElementById('detail-overlay').classList.contains('open') && _detailKey !== null) {
+    e.preventDefault();
+    for (const item of imageItems) {
+      const file = item.getAsFile();
+      const reader = new FileReader();
+      reader.onload = async (re) => {
+        let ev = snsData[_detailKey] && snsData[_detailKey][_detailIdx];
+        if (!ev) return;
+        if (!ev._dbId) {
+          const dbId = await saveEventToDB({ date: _detailKey, campaign: ev.campaign, type: ev.type, text: ev.text });
+          if (!dbId) return;
+          ev._dbId = dbId;
+        }
+        await sbFetch('event_images', 'POST', { event_id: ev._dbId, url: re.target.result });
+        await loadImages();
+        if (ev._dbId) imageCache[ev._dbId] = _cachedImages.slice();
+        _galleryIdx = _cachedImages.length - 1;
+        renderGallery();
+        render();
+      };
+      reader.readAsDataURL(file);
+    }
+    return;
+  }
+
+  // Add modal open → add to pending images
+  if (document.getElementById('add-overlay').classList.contains('open')) {
+    e.preventDefault();
+    for (const item of imageItems) {
+      const file = item.getAsFile();
+      const reader = new FileReader();
+      reader.onload = (re) => {
+        _addImages.push(re.target.result);
+        renderAddImagePreview();
+      };
+      reader.readAsDataURL(file);
+    }
+  }
+});
+
 // ─── WEEK MAJOR EDITOR ───
 let _editorWStr = null, _editorOriginal = '', _editorBold = false, _editorItalic = false, _editorColor = '#1a1916';
 
