@@ -526,6 +526,26 @@
     box-sizing: border-box;
     width: 100%;
   }
+  .span-in-cell {
+    cursor: pointer;
+    transition: filter 0.12s;
+    box-sizing: border-box;
+    width: 100%;
+  }
+  .span-in-cell:hover { filter: brightness(0.94); }
+  .span-in-cell.teaser { border-color: #c2e4d0 !important; }
+  .span-in-cell.teaser .span-block-label { background: var(--teaser-label); color: var(--teaser-text); }
+  .span-in-cell.teaser .span-block-content { background: var(--teaser-bg); }
+  .span-in-cell.teaser .span-block-tag { background: var(--teaser-sns-bg); color: var(--teaser-sns); }
+  .span-in-cell.teaser.viral-span .span-block-tag { background: var(--teaser-viral-bg); color: var(--teaser-viral); }
+  .span-in-cell.debut { border-color: #e0c0d0 !important; }
+  .span-in-cell.debut .span-block-label { background: var(--debut-label); color: var(--debut-text); }
+  .span-in-cell.debut .span-block-content { background: var(--debut-bg); }
+  .span-in-cell.debut .span-block-tag { background: var(--debut-sns-bg); color: var(--debut-sns); }
+  .span-in-cell.debut.viral-span .span-block-tag { background: var(--debut-viral-bg); color: var(--debut-viral); }
+  /* continuation cells - just background */
+  .span-in-cell:not(:has(.span-block-label)).teaser { background: var(--teaser-bg); }
+  .span-in-cell:not(:has(.span-block-label)).debut  { background: var(--debut-bg); }
   .span-overlay:hover { filter: brightness(0.94); }
   .span-overlay.teaser { border-color: #c2e4d0; }
   .span-overlay.teaser .span-block-label { background: var(--teaser-label); color: var(--teaser-text); }
@@ -1450,91 +1470,60 @@ function render(){
       weekRow.appendChild(cell);
     }
 
-    // ─── SPAN EVENTS: render as subgrid rows inside a wrapper ───
+    // ─── SPAN EVENTS: inject into each day cell after day-num + holidays ───
     const weekFriOv = new Date(ws); weekFriOv.setDate(ws.getDate()+4);
     const weekFriOvStr = toStr(weekFriOv);
     const weekSpans = spanEvents.filter(ev => shouldShow(ev) && ev.dateStart <= weekFriOvStr && ev.dateEnd >= wStr);
 
-    if (weekSpans.length) {
-      // Wrap weekRow in a container that also holds span rows
-      const wrapper = document.createElement('div');
-      wrapper.style.cssText = 'border-bottom:1px solid var(--border);';
+    weekSpans.forEach(ev => {
+      const isWeekStart = ev.dateStart >= wStr;
+      const isWeekEnd   = ev.dateEnd <= weekFriOvStr;
+      let startCol = 0, endCol = 4;
+      for (let c = 0; c < 5; c++) {
+        const cd = new Date(ws); cd.setDate(ws.getDate()+c);
+        if (toStr(cd) === ev.dateStart) startCol = c;
+        if (toStr(cd) === ev.dateEnd)   endCol   = c;
+      }
+      if (!isWeekStart) startCol = 0;
+      if (!isWeekEnd)   endCol   = 4;
 
-      // For each span, add a grid row BEFORE the week row inside wrapper
-      weekSpans.forEach(ev => {
-        const isWeekStart = ev.dateStart >= wStr;
-        const isWeekEnd   = ev.dateEnd <= weekFriOvStr;
-        let startCol = 0, endCol = 4;
-        for (let c = 0; c < 5; c++) {
-          const cd = new Date(ws); cd.setDate(ws.getDate()+c);
-          if (toStr(cd) === ev.dateStart) startCol = c;
-          if (toStr(cd) === ev.dateEnd)   endCol   = c;
+      const dayCells = weekRow.querySelectorAll('.day-cell');
+      for (let c = startCol; c <= endCol; c++) {
+        const cell = dayCells[c];
+        if (!cell) continue;
+        const isS = c === startCol;
+        const isE = c === endCol;
+
+        const block = document.createElement('div');
+        block.className = 'span-in-cell ' + ev.campaign + (ev.type==='viral'?' viral-span':'');
+        block.style.borderRadius = (isS?'6px':'0') + ' ' + (isE?'6px':'0') + ' ' + (isE?'6px':'0') + ' ' + (isS?'6px':'0');
+
+        if (isS) {
+          const lbl = document.createElement('div');
+          lbl.className = 'span-block-label';
+          lbl.textContent = ev.campaign==='teaser'?'티저 캠페인':'데뷔 캠페인';
+          block.appendChild(lbl);
+          const items = document.createElement('div');
+          items.className = 'span-block-content';
+          const tag = document.createElement('div');
+          tag.className = 'span-block-tag';
+          tag.textContent = ev.text;
+          tag.style.listStyle = 'none';
+          items.appendChild(tag);
+          block.appendChild(items);
+        } else {
+          block.style.minHeight = '52px';
         }
-        if (!isWeekStart) startCol = 0;
-        if (!isWeekEnd)   endCol   = 4;
+        block.addEventListener('click', e => { e.stopPropagation(); openSpanDetail(ev); });
 
-        const spanRow = document.createElement('div');
-        spanRow.style.cssText = 'display:grid;grid-template-columns:140px repeat(5,1fr);';
+        // Insert after day-num and holiday chips, before campaign blocks
+        const insertRef = cell.querySelector('.campaign-block, .cell-thumbs');
+        if (insertRef) cell.insertBefore(block, insertRef);
+        else cell.appendChild(block);
+      }
+    });
 
-        // label col
-        const lc = document.createElement('div');
-        lc.style.cssText = 'background:var(--surface2);border-right:1px solid var(--border);';
-        spanRow.appendChild(lc);
-
-        for (let c = 0; c < 5; c++) {
-          const td = document.createElement('div');
-          const inSpan = c >= startCol && c <= endCol;
-          const isS = c === startCol, isE = c === endCol;
-
-          // Cell styling: no padding so block fills edge-to-edge
-          td.style.cssText = 'border-right:' + (c<4?'1px solid var(--border)':'none') + ';';
-
-          if (inSpan) {
-            const block = document.createElement('div');
-            block.className = 'span-overlay ' + ev.campaign + (ev.type==='viral'?' viral-span':'');
-
-            // Radius only on outer edges
-            const rTL = isS ? '6px' : '0';
-            const rBL = isS ? '6px' : '0';
-            const rTR = isE ? '6px' : '0';
-            const rBR = isE ? '6px' : '0';
-            block.style.cssText =
-              'border-radius:' + rTL + ' ' + rTR + ' ' + rBR + ' ' + rBL + ';' +
-              'margin:4px ' + (isE?'8px':'0') + ' 4px ' + (isS?'8px':'0') + ';' +
-              (isS?'':'border-left:none;border-top-left-radius:0;border-bottom-left-radius:0;') +
-              (isE?'':'border-right:none;border-top-right-radius:0;border-bottom-right-radius:0;');
-
-            if (isS) {
-              const lbl = document.createElement('div');
-              lbl.className = 'span-block-label';
-              lbl.textContent = ev.campaign==='teaser'?'티저 캠페인':'데뷔 캠페인';
-              block.appendChild(lbl);
-              const items = document.createElement('div');
-              items.className = 'span-block-content';
-              const tag = document.createElement('div');
-              tag.className = 'span-block-tag';
-              tag.textContent = ev.text;
-              items.appendChild(tag);
-              block.appendChild(items);
-            } else {
-              // continuation: fill with background color, same height as start block
-              block.style.minHeight = '50px';
-            }
-            block.addEventListener('click', e => { e.stopPropagation(); openSpanDetail(ev); });
-            td.appendChild(block);
-          }
-          spanRow.appendChild(td);
-        }
-      });
-
-      // weekRow first, then span rows
-      weekRow.style.borderBottom = 'none';
-      wrapper.appendChild(weekRow);
-      body.appendChild(wrapper);
-    } else {
-      body.appendChild(weekRow);
-    }
-
+    body.appendChild(weekRow);
     ws.setDate(ws.getDate()+7);
   }
 }
