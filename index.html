@@ -543,9 +543,9 @@
   .span-in-cell.debut .span-block-content { background: var(--debut-bg); }
   .span-in-cell.debut .span-block-tag { background: var(--debut-sns-bg); color: var(--debut-sns); }
   .span-in-cell.debut.viral-span .span-block-tag { background: var(--debut-viral-bg); color: var(--debut-viral); }
-  /* continuation cells - just background */
-  .span-in-cell:not(:has(.span-block-label)).teaser { background: var(--teaser-bg); }
-  .span-in-cell:not(:has(.span-block-label)).debut  { background: var(--debut-bg); }
+  /* continuation cells */
+  .span-in-cell.teaser { background: var(--teaser-bg); border: 1px solid #c2e4d0; }
+  .span-in-cell.debut  { background: var(--debut-bg);  border: 1px solid #e0c0d0; }
   .span-overlay:hover { filter: brightness(0.94); }
   .span-overlay.teaser { border-color: #c2e4d0; }
   .span-overlay.teaser .span-block-label { background: var(--teaser-label); color: var(--teaser-text); }
@@ -1470,12 +1470,14 @@ function render(){
       weekRow.appendChild(cell);
     }
 
-    // ─── SPAN EVENTS: inject into each day cell after day-num + holidays ───
+    body.appendChild(weekRow);
+
+    // ─── SPAN EVENTS: absolute overlay ───
     const weekFriOv = new Date(ws); weekFriOv.setDate(ws.getDate()+4);
     const weekFriOvStr = toStr(weekFriOv);
     const weekSpans = spanEvents.filter(ev => shouldShow(ev) && ev.dateStart <= weekFriOvStr && ev.dateEnd >= wStr);
 
-    weekSpans.forEach(ev => {
+    weekSpans.forEach((ev, si) => {
       const isWeekStart = ev.dateStart >= wStr;
       const isWeekEnd   = ev.dateEnd <= weekFriOvStr;
       let startCol = 0, endCol = 4;
@@ -1487,43 +1489,46 @@ function render(){
       if (!isWeekStart) startCol = 0;
       if (!isWeekEnd)   endCol   = 4;
 
-      const dayCells = weekRow.querySelectorAll('.day-cell');
-      for (let c = startCol; c <= endCol; c++) {
-        const cell = dayCells[c];
-        if (!cell) continue;
-        const isS = c === startCol;
-        const isE = c === endCol;
+      const overlay = document.createElement('div');
+      overlay.className = 'span-in-cell ' + ev.campaign + (ev.type==='viral'?' viral-span':'');
+      overlay.style.position = 'absolute';
+      overlay.style.zIndex = '5';
+      overlay.style.borderRadius = '6px';
+      overlay.style.overflow = 'hidden';
+      overlay.style.cursor = 'pointer';
 
-        const block = document.createElement('div');
-        block.className = 'span-in-cell ' + ev.campaign + (ev.type==='viral'?' viral-span':'');
-        block.style.borderRadius = (isS?'6px':'0') + ' ' + (isE?'6px':'0') + ' ' + (isE?'6px':'0') + ' ' + (isS?'6px':'0');
+      const lbl = document.createElement('div');
+      lbl.className = 'span-block-label';
+      lbl.textContent = ev.campaign==='teaser'?'티저 캠페인':'데뷔 캠페인';
+      overlay.appendChild(lbl);
+      const items = document.createElement('div');
+      items.className = 'span-block-content';
+      const tag = document.createElement('div');
+      tag.className = 'span-block-tag';
+      tag.textContent = ev.text;
+      items.appendChild(tag);
+      overlay.appendChild(items);
+      overlay.addEventListener('click', e => { e.stopPropagation(); openSpanDetail(ev); });
 
-        if (isS) {
-          const lbl = document.createElement('div');
-          lbl.className = 'span-block-label';
-          lbl.textContent = ev.campaign==='teaser'?'티저 캠페인':'데뷔 캠페인';
-          block.appendChild(lbl);
-          const items = document.createElement('div');
-          items.className = 'span-block-content';
-          const tag = document.createElement('div');
-          tag.className = 'span-block-tag';
-          tag.textContent = ev.text;
-          tag.style.listStyle = 'none';
-          items.appendChild(tag);
-          block.appendChild(items);
-        } else {
-          block.style.minHeight = '52px';
-        }
-        block.addEventListener('click', e => { e.stopPropagation(); openSpanDetail(ev); });
+      weekRow.style.position = 'relative';
+      weekRow.appendChild(overlay);
 
-        // Insert after day-num and holiday chips, before campaign blocks
-        const insertRef = cell.querySelector('.campaign-block, .cell-thumbs');
-        if (insertRef) cell.insertBefore(block, insertRef);
-        else cell.appendChild(block);
-      }
+      requestAnimationFrame(() => {
+        const cells = weekRow.querySelectorAll('.day-cell');
+        if (cells.length < 5) return;
+        const rowRect = weekRow.getBoundingClientRect();
+        const startRect = cells[startCol].getBoundingClientRect();
+        const endRect   = cells[endCol].getBoundingClientRect();
+        const PAD = 8;
+        const left  = startRect.left - rowRect.left + PAD;
+        const width = endRect.right - startRect.left - PAD - PAD;
+        const top   = 36 + si * 58;
+        overlay.style.left  = left + 'px';
+        overlay.style.width = width + 'px';
+        overlay.style.top   = top + 'px';
+      });
     });
 
-    body.appendChild(weekRow);
     ws.setDate(ws.getDate()+7);
   }
 }
