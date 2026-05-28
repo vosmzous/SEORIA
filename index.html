@@ -187,11 +187,12 @@
     max-width: 1400px;
     margin: 0 auto;
     overflow: hidden;
+    overflow: hidden;
   }
   .cal-grid {
     border: 1px solid var(--border);
     border-radius: 12px;
-    overflow: hidden;
+    overflow: visible;
     background: var(--surface);
     position: relative;
   }
@@ -260,7 +261,7 @@
     position: relative;
     transition: background 0.1s;
     cursor: pointer;
-    overflow: hidden;
+    overflow: visible;
     min-width: 0;
     word-break: break-word;
   }
@@ -514,6 +515,27 @@
     outline: 2px dashed #85B7EB;
     outline-offset: -2px;
   }
+
+  /* ─── SPAN EVENTS ─── */
+  .span-block {
+    height: 18px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    padding: 0 6px;
+    font-size: 10px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+    flex-shrink: 0;
+    margin-bottom: 2px;
+    box-sizing: border-box;
+  }
+  .span-block.teaser { background: #9FE1CB; color: #085041; }
+  .span-block.debut  { background: #F4C0D1; color: #72243E; }
+  .span-block:hover  { filter: brightness(0.92); }
 
   /* ─── ADD BUTTON ─── */
   .add-btn {
@@ -1284,8 +1306,13 @@ function render(){
         const bar = document.createElement('div');
         bar.className = 'span-block ' + ev.campaign;
         bar.textContent = isStart ? ev.text : '';
-        if (!isStart) { bar.style.borderTopLeftRadius='0'; bar.style.borderBottomLeftRadius='0'; bar.style.marginLeft='-9px'; }
-        if (!isEnd)   { bar.style.borderTopRightRadius='0'; bar.style.borderBottomRightRadius='0'; bar.style.marginRight='-9px'; }
+        // Use padding offset instead of negative margin to avoid overflow:hidden clipping
+        bar.style.position = 'relative';
+        bar.style.zIndex = '3';
+        bar.style.margin = '0 -8px';
+        bar.style.padding = '0 8px';
+        if (!isStart) { bar.style.borderTopLeftRadius='0'; bar.style.borderBottomLeftRadius='0'; }
+        if (!isEnd)   { bar.style.borderTopRightRadius='0'; bar.style.borderBottomRightRadius='0'; }
         bar.addEventListener('click', (e) => { e.stopPropagation(); openSpanDetail(ev); });
         cell.appendChild(bar);
       });
