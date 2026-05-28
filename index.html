@@ -1507,11 +1507,22 @@ sbClient
     const row = payload.new;
     if (!snsData[row.date]) snsData[row.date] = [];
     // Avoid duplicate if we just added it ourselves
-    const exists = snsData[row.date].some(ev => ev._dbId === row.id);
-    if (!exists) {
-      snsData[row.date].push({ campaign: row.campaign, type: row.type, text: row.text, _dbId: row.id });
-      showToast('새 일정이 추가됐어요');
-      render();
+    if (row.date_end && row.date_end !== row.date) {
+      // span event
+      const existsSpan = spanEvents.some(ev => ev._dbId === row.id);
+      if (!existsSpan) {
+        spanEvents.push({ campaign: row.campaign, type: row.type, text: row.text, memo: row.memo || '', _dbId: row.id, dateStart: row.date, dateEnd: row.date_end, date: row.date });
+        showToast('새 일정이 추가됐어요');
+        render();
+      }
+    } else {
+      const exists = snsData[row.date] && snsData[row.date].some(ev => ev._dbId === row.id);
+      if (!exists) {
+        if (!snsData[row.date]) snsData[row.date] = [];
+        snsData[row.date].push({ campaign: row.campaign, type: row.type, text: row.text, memo: row.memo || '', _dbId: row.id, date: row.date });
+        showToast('새 일정이 추가됐어요');
+        render();
+      }
     }
   })
   .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'events' }, async (payload) => {
