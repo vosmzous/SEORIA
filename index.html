@@ -48,7 +48,9 @@
   .topbar {
     background: var(--surface);
     border-bottom: 1px solid var(--border);
-    padding: 0 290px;
+    padding: 0 40px;
+    max-width: 1400px;
+    margin: 0 auto;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -109,7 +111,9 @@
 
   /* ─── CALENDAR HEADER ─── */
   .cal-controls {
-    padding: 24px 290px 16px;
+    padding: 24px 40px 16px;
+    max-width: 1400px;
+    margin: 0 auto;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -154,7 +158,9 @@
 
   /* ─── LEGEND ─── */
   .legend {
-    padding: 0 290px 20px;
+    padding: 0 40px 20px;
+    max-width: 1400px;
+    margin: 0 auto;
     display: flex; gap: 20px; flex-wrap: wrap; align-items: center;
   }
   .legend-item {
@@ -177,7 +183,9 @@
 
   /* ─── GRID ─── */
   .cal-wrap {
-    padding: 0 290px 40px;
+    padding: 0 40px 40px;
+    max-width: 1400px;
+    margin: 0 auto;
     overflow: hidden;
   }
   .cal-grid {
@@ -1266,6 +1274,21 @@ function render(){
       dn.className = 'day-num' + (ds===today?' today':'');
       dn.textContent = d.getDate();
       cell.appendChild(dn);
+
+      // ─── SPAN BARS ───
+      const weekFriDs = new Date(ws); weekFriDs.setDate(ws.getDate()+4);
+      const weekFriDsStr = toStr(weekFriDs);
+      spanEvents.filter(ev => shouldShow(ev) && ev.dateStart <= ds && ev.dateEnd >= ds).forEach(ev => {
+        const isStart = ds === ev.dateStart || (ev.dateStart < wStr && i === 0);
+        const isEnd   = ds === ev.dateEnd   || (ev.dateEnd > weekFriDsStr && i === 4);
+        const bar = document.createElement('div');
+        bar.className = 'span-block ' + ev.campaign;
+        bar.textContent = isStart ? ev.text : '';
+        if (!isStart) { bar.style.borderTopLeftRadius='0'; bar.style.borderBottomLeftRadius='0'; bar.style.marginLeft='-9px'; }
+        if (!isEnd)   { bar.style.borderTopRightRadius='0'; bar.style.borderBottomRightRadius='0'; bar.style.marginRight='-9px'; }
+        bar.addEventListener('click', (e) => { e.stopPropagation(); openSpanDetail(ev); });
+        cell.appendChild(bar);
+      });
 
       const events = snsData[ds] || [];
 
