@@ -192,7 +192,7 @@
   .cal-grid {
     border: 1px solid var(--border);
     border-radius: 12px;
-    overflow: visible;
+    overflow: hidden;
     background: var(--surface);
     position: relative;
   }
@@ -261,7 +261,7 @@
     position: relative;
     transition: background 0.1s;
     cursor: pointer;
-    overflow: visible;
+    overflow: hidden;
     min-width: 0;
     word-break: break-word;
   }
@@ -340,7 +340,7 @@
     line-height: 1.4;
     word-break: keep-all;
   }
-  .dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+  .dot { display: none; }
 
   .tag-teaser-sns { background: var(--teaser-sns-bg); color: var(--teaser-sns); }
   .tag-teaser-sns .dot { background: var(--teaser-sns); }
@@ -516,6 +516,28 @@
     outline-offset: -2px;
   }
 
+  /* ─── SPAN OVERLAY ─── */
+  .span-overlay {
+    border-radius: 6px;
+    overflow: hidden;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: filter 0.12s;
+    box-sizing: border-box;
+    width: 100%;
+  }
+  .span-overlay:hover { filter: brightness(0.94); }
+  .span-overlay.teaser { border-color: #c2e4d0; }
+  .span-overlay.teaser .span-block-label { background: var(--teaser-label); color: var(--teaser-text); }
+  .span-overlay.teaser .span-block-content { background: var(--teaser-bg); }
+  .span-overlay.teaser .span-block-tag { background: var(--teaser-sns-bg); color: var(--teaser-sns); }
+  .span-overlay.teaser.viral-span .span-block-tag { background: var(--teaser-viral-bg); color: var(--teaser-viral); }
+  .span-overlay.debut { border-color: #e0c0d0; }
+  .span-overlay.debut .span-block-label { background: var(--debut-label); color: var(--debut-text); }
+  .span-overlay.debut .span-block-content { background: var(--debut-bg); }
+  .span-overlay.debut .span-block-tag { background: var(--debut-sns-bg); color: var(--debut-sns); }
+  .span-overlay.debut.viral-span .span-block-tag { background: var(--debut-viral-bg); color: var(--debut-viral); }
+
   /* ─── SPAN EVENTS ─── */
   /* span-wrapper: stretches across cells via negative margin */
   .span-block {
@@ -530,25 +552,25 @@
     z-index: 3;
   }
   .span-block:hover { filter: brightness(0.94); }
-  /* start cell: full block, right side open */
-  .span-block.span-start { border-top-right-radius: 0; border-bottom-right-radius: 0; margin-right: -9px; }
-  /* middle cell: no radius, both sides open */
-  .span-block.span-mid   { border-radius: 0; margin-left: -9px; margin-right: -9px; }
-  /* end cell: left side open */
-  .span-block.span-end   { border-top-left-radius: 0; border-bottom-left-radius: 0; margin-left: -9px; }
+  /* start: normal radius; mid/end: square left corners to suggest continuation */
+  .span-block.span-start { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+  .span-block.span-mid   { border-radius: 0; }
+  .span-block.span-end   { border-top-left-radius: 0; border-bottom-left-radius: 0; }
 
-  .span-block-label { font-size: 13px; font-weight: 600; padding: 3px 7px; }
-  .span-block-content { padding: 4px 6px 5px; display: flex; flex-direction: column; gap: 3px; }
+  .span-block-label { font-size: 13px; font-weight: 600; padding: 3px 7px; line-height: 1.4; }
+  .span-block-content { padding: 4px 7px 6px; display: flex; flex-direction: column; gap: 3px; }
   .span-block-tag {
-    font-size: 12px; padding: 2px 6px; border-radius: 4px;
+    font-size: 15px; font-weight: 400;
+    padding: 2px 6px; border-radius: 4px;
     display: flex; align-items: center; gap: 4px;
     line-height: 1.4; word-break: keep-all;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
-  .span-block-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+  .span-block-dot { display: none; }
 
   /* teaser */
   .span-block.teaser { border: 1px solid #c2e4d0; }
-  .span-block.teaser .span-block-label { background: #9FE1CB; color: #085041; }
+  .span-block.teaser .span-block-label { background: var(--teaser-label); color: var(--teaser-text); }
   .span-block.teaser .span-block-content { background: var(--teaser-bg); }
   .span-block.teaser .span-block-tag { background: var(--teaser-sns-bg); color: var(--teaser-sns); }
   .span-block.teaser .span-block-dot { background: var(--teaser-sns); }
@@ -556,7 +578,7 @@
   .span-block.teaser .span-block-tag.viral .span-block-dot { background: var(--teaser-viral); }
   /* debut */
   .span-block.debut { border: 1px solid #e0c0d0; }
-  .span-block.debut .span-block-label { background: #F4C0D1; color: #72243E; }
+  .span-block.debut .span-block-label { background: var(--debut-label); color: var(--debut-text); }
   .span-block.debut .span-block-content { background: var(--debut-bg); }
   .span-block.debut .span-block-tag { background: var(--debut-sns-bg); color: var(--debut-sns); }
   .span-block.debut .span-block-dot { background: var(--debut-sns); }
@@ -569,9 +591,9 @@
   .span-block.span-end .span-block-label,
   .span-block.span-end .span-block-content { display: none; }
   .span-block.teaser.span-mid,
-  .span-block.teaser.span-end { background: var(--teaser-bg); border-color: #c2e4d0; min-height: 46px; }
+  .span-block.teaser.span-end { background: #E8F5EE; border-color: #c2e4d0; min-height: 46px; border-left: none; }
   .span-block.debut.span-mid,
-  .span-block.debut.span-end  { background: var(--debut-bg);  border-color: #e0c0d0; min-height: 46px; }
+  .span-block.debut.span-end  { background: #F9EDF2; border-color: #e0c0d0; min-height: 46px; border-left: none; }
 
   /* ─── ADD BUTTON ─── */
   .add-btn {
@@ -1333,25 +1355,7 @@ function render(){
       dn.textContent = d.getDate();
       cell.appendChild(dn);
 
-      // ─── SPAN BARS ───
-      const weekFriDs = new Date(ws); weekFriDs.setDate(ws.getDate()+4);
-      const weekFriDsStr = toStr(weekFriDs);
-      spanEvents.filter(ev => shouldShow(ev) && ev.dateStart <= ds && ev.dateEnd >= ds).forEach(ev => {
-        const isStart = ds === ev.dateStart || (ev.dateStart < wStr && i === 0);
-        const isEnd   = ds === ev.dateEnd   || (ev.dateEnd > weekFriDsStr && i === 4);
-        const bar = document.createElement('div');
-        bar.className = 'span-block ' + ev.campaign;
-        bar.textContent = isStart ? ev.text : '';
-        // Use padding offset instead of negative margin to avoid overflow:hidden clipping
-        bar.style.position = 'relative';
-        bar.style.zIndex = '3';
-        bar.style.margin = '0 -8px';
-        bar.style.padding = '0 8px';
-        if (!isStart) { bar.style.borderTopLeftRadius='0'; bar.style.borderBottomLeftRadius='0'; }
-        if (!isEnd)   { bar.style.borderTopRightRadius='0'; bar.style.borderBottomRightRadius='0'; }
-        bar.addEventListener('click', (e) => { e.stopPropagation(); openSpanDetail(ev); });
-        cell.appendChild(bar);
-      });
+
 
       const events = snsData[ds] || [];
 
@@ -1382,7 +1386,7 @@ function render(){
         evs.forEach(ev => {
           const tag = document.createElement('div');
           tag.className = 'content-tag tag-'+camp+'-'+ev.type;
-          tag.innerHTML = '<div class="dot"></div>' + ev.text;
+          tag.textContent = ev.text;
           tag.draggable = true;
           const evIdx = snsData[ds].indexOf(ev);
           (function(dateStr, idx){
@@ -1446,7 +1450,91 @@ function render(){
       weekRow.appendChild(cell);
     }
 
-    body.appendChild(weekRow);
+    // ─── SPAN EVENTS: render as subgrid rows inside a wrapper ───
+    const weekFriOv = new Date(ws); weekFriOv.setDate(ws.getDate()+4);
+    const weekFriOvStr = toStr(weekFriOv);
+    const weekSpans = spanEvents.filter(ev => shouldShow(ev) && ev.dateStart <= weekFriOvStr && ev.dateEnd >= wStr);
+
+    if (weekSpans.length) {
+      // Wrap weekRow in a container that also holds span rows
+      const wrapper = document.createElement('div');
+      wrapper.style.cssText = 'border-bottom:1px solid var(--border);';
+
+      // For each span, add a grid row BEFORE the week row inside wrapper
+      weekSpans.forEach(ev => {
+        const isWeekStart = ev.dateStart >= wStr;
+        const isWeekEnd   = ev.dateEnd <= weekFriOvStr;
+        let startCol = 0, endCol = 4;
+        for (let c = 0; c < 5; c++) {
+          const cd = new Date(ws); cd.setDate(ws.getDate()+c);
+          if (toStr(cd) === ev.dateStart) startCol = c;
+          if (toStr(cd) === ev.dateEnd)   endCol   = c;
+        }
+        if (!isWeekStart) startCol = 0;
+        if (!isWeekEnd)   endCol   = 4;
+
+        const spanRow = document.createElement('div');
+        spanRow.style.cssText = 'display:grid;grid-template-columns:140px repeat(5,1fr);';
+
+        // label col
+        const lc = document.createElement('div');
+        lc.style.cssText = 'background:var(--surface2);border-right:1px solid var(--border);';
+        spanRow.appendChild(lc);
+
+        for (let c = 0; c < 5; c++) {
+          const td = document.createElement('div');
+          const inSpan = c >= startCol && c <= endCol;
+          const isS = c === startCol, isE = c === endCol;
+
+          // Cell styling: no padding so block fills edge-to-edge
+          td.style.cssText = 'border-right:' + (c<4?'1px solid var(--border)':'none') + ';';
+
+          if (inSpan) {
+            const block = document.createElement('div');
+            block.className = 'span-overlay ' + ev.campaign + (ev.type==='viral'?' viral-span':'');
+
+            // Radius only on outer edges
+            const rTL = isS ? '6px' : '0';
+            const rBL = isS ? '6px' : '0';
+            const rTR = isE ? '6px' : '0';
+            const rBR = isE ? '6px' : '0';
+            block.style.cssText =
+              'border-radius:' + rTL + ' ' + rTR + ' ' + rBR + ' ' + rBL + ';' +
+              'margin:4px ' + (isE?'8px':'0') + ' 4px ' + (isS?'8px':'0') + ';' +
+              (isS?'':'border-left:none;border-top-left-radius:0;border-bottom-left-radius:0;') +
+              (isE?'':'border-right:none;border-top-right-radius:0;border-bottom-right-radius:0;');
+
+            if (isS) {
+              const lbl = document.createElement('div');
+              lbl.className = 'span-block-label';
+              lbl.textContent = ev.campaign==='teaser'?'티저 캠페인':'데뷔 캠페인';
+              block.appendChild(lbl);
+              const items = document.createElement('div');
+              items.className = 'span-block-content';
+              const tag = document.createElement('div');
+              tag.className = 'span-block-tag';
+              tag.textContent = ev.text;
+              items.appendChild(tag);
+              block.appendChild(items);
+            } else {
+              // continuation: fill with background color, same height as start block
+              block.style.minHeight = '50px';
+            }
+            block.addEventListener('click', e => { e.stopPropagation(); openSpanDetail(ev); });
+            td.appendChild(block);
+          }
+          spanRow.appendChild(td);
+        }
+      });
+
+      // weekRow first, then span rows
+      weekRow.style.borderBottom = 'none';
+      wrapper.appendChild(weekRow);
+      body.appendChild(wrapper);
+    } else {
+      body.appendChild(weekRow);
+    }
+
     ws.setDate(ws.getDate()+7);
   }
 }
@@ -1455,9 +1543,12 @@ function render(){
 loadFromDB();
 
 // ─── SPAN DETAIL ───
+let _currentSpanEv = null;
+
 function openSpanDetail(ev) {
+  _currentSpanEv = ev;
   _detailKey = ev.dateStart;
-  _detailIdx = -1; // span marker
+  _detailIdx = -1;
   const d1 = new Date(ev.dateStart), d2 = new Date(ev.dateEnd);
   const fmt = (d) => d.getFullYear()+'년 '+(d.getMonth()+1)+'월 '+d.getDate()+'일';
   document.getElementById('detail-date').textContent = fmt(d1) + ' ~ ' + fmt(d2);
@@ -1465,11 +1556,19 @@ function openSpanDetail(ev) {
   badge.textContent = (ev.campaign==='teaser'?'티저 캠페인':'데뷔 캠페인');
   badge.className = 'detail-badge ' + (ev.campaign==='teaser'?'lc-teaser':'lc-debut');
   document.getElementById('detail-text').textContent = ev.text;
-  document.getElementById('detail-edit-btn').style.display = 'none'; // TODO: edit span
+  document.getElementById('detail-edit-btn').style.display = '';
+  refreshMemoView(ev.memo || '');
   _cachedImages = [];
-  document.getElementById('gallery-container').innerHTML = '<label for="gallery-file-input" class="gallery-empty">＋ 사진을 추가해보세요</label>';
+  // Load images if dbId exists
+  if (ev._dbId) {
+    loadImages().then(() => {
+      if (ev._dbId && imageCache[ev._dbId]) _cachedImages = imageCache[ev._dbId].slice();
+      renderGallery();
+    });
+  } else {
+    document.getElementById('gallery-container').innerHTML = '<label for="gallery-file-input" class="gallery-empty">＋ 사진을 추가해보세요</label>';
+  }
   document.getElementById('detail-overlay').classList.add('open');
-  // store ref for delete
   document.getElementById('detail-overlay').dataset.spanId = ev._dbId || '';
 }
 
@@ -1646,7 +1745,8 @@ function closeDetail() {
 let _editCampaign = null, _editType = null;
 
 function toggleEditMode() {
-  const ev = snsData[_detailKey][_detailIdx];
+  const ev = (_detailIdx === -1) ? _currentSpanEv : snsData[_detailKey][_detailIdx];
+  if (!ev) return;
   _editCampaign = ev.campaign;
   _editType = ev.type;
 
@@ -1654,16 +1754,16 @@ function toggleEditMode() {
   document.getElementById('detail-edit-mode').style.display = 'block';
   document.getElementById('edit-text-input').value = ev.text;
   document.getElementById('edit-memo-input').value = ev.memo || '';
-  document.getElementById('edit-date-input').value = _detailKey;
+  document.getElementById('edit-date-input').value = (_detailIdx === -1) ? ev.dateStart : _detailKey;
 
   // Set date range state
-  const hasRange = ev.dateEnd && ev.dateEnd !== _detailKey;
+  const hasRange = (_detailIdx === -1) || (ev.dateEnd && ev.dateEnd !== _detailKey);
   document.getElementById('edit-is-range').checked = hasRange;
   document.getElementById('edit-date-single').style.display = hasRange ? 'none' : 'block';
   document.getElementById('edit-date-range').style.display  = hasRange ? 'flex' : 'none';
   if (hasRange) {
-    document.getElementById('edit-date-start').value = _detailKey;
-    document.getElementById('edit-date-end').value   = ev.dateEnd || _detailKey;
+    document.getElementById('edit-date-start').value = (_detailIdx === -1) ? ev.dateStart : _detailKey;
+    document.getElementById('edit-date-end').value   = (_detailIdx === -1) ? ev.dateEnd : (ev.dateEnd || _detailKey);
   }
 
   // set seg buttons
@@ -1689,6 +1789,12 @@ function cancelEdit() {
   document.getElementById('detail-cancel-btn').style.display = 'none';
   document.getElementById('detail-save-btn').style.display = 'none';
   document.getElementById('detail-modal-title').textContent = '일정 상세';
+  // Refresh date display for span
+  if (_detailIdx === -1 && _currentSpanEv) {
+    const d1 = new Date(_currentSpanEv.dateStart), d2 = new Date(_currentSpanEv.dateEnd);
+    const fmt = (d) => d.getFullYear()+'년 '+(d.getMonth()+1)+'월 '+d.getDate()+'일';
+    document.getElementById('detail-date').textContent = fmt(d1) + ' ~ ' + fmt(d2);
+  }
 }
 
 function setEditCampaign(c) {
@@ -1714,11 +1820,13 @@ async function saveEdit() {
   if (!_editCampaign) { alert('캠페인을 선택해주세요.'); return; }
   if (!_editType)     { alert('유형을 선택해주세요.'); return; }
 
-  const ev = snsData[_detailKey][_detailIdx];
+  const isSpan = _detailIdx === -1;
+  const ev = isSpan ? _currentSpanEv : snsData[_detailKey][_detailIdx];
+  if (!ev) return;
   const saveBtn = document.getElementById('detail-save-btn');
   saveBtn.textContent = '저장 중...'; saveBtn.disabled = true;
 
-  const dateChanged = newDate !== _detailKey;
+  const dateChanged = newDate !== (isSpan ? ev.dateStart : _detailKey);
 
   // Update in DB
   if (ev._dbId) {
@@ -1727,36 +1835,41 @@ async function saveEdit() {
       { date: newDate, date_end: newDateEnd !== newDate ? newDateEnd : null, campaign: _editCampaign, type: _editType, text: textVal, memo: memoVal || null },
       'return=minimal'
     );
+    ev.memo = memoVal;
   } else {
     const dbId = await saveEventToDB({ date: newDate, campaign: _editCampaign, type: _editType, text: textVal });
     if (dbId) ev._dbId = dbId;
   }
 
-  // Store dateEnd and memo on event
-  ev.dateEnd = newDateEnd !== newDate ? newDateEnd : undefined;
-  ev.memo = document.getElementById('edit-memo-input').value.trim();
-
-  // If converting to span event, move from snsData to spanEvents
-  if (editIsRange && newDate !== newDateEnd) {
-    snsData[_detailKey].splice(_detailIdx, 1);
-    if (!snsData[_detailKey].length) delete snsData[_detailKey];
-    spanEvents.push({ ...ev, dateStart: newDate, dateEnd: newDateEnd, date: newDate, _dbId: ev._dbId });
-    cancelEdit(); closeDetail(); render(); return;
-  }
-
-  // Move to new date if changed
-  if (dateChanged) {
-    snsData[_detailKey].splice(_detailIdx, 1);
-    if (!snsData[_detailKey].length) delete snsData[_detailKey];
-    if (!snsData[newDate]) snsData[newDate] = [];
-    ev.date = newDate;
-    snsData[newDate].push(ev);
-  }
-
-  // Update local fields
   ev.campaign = _editCampaign;
   ev.type     = _editType;
   ev.text     = textVal;
+
+  if (isSpan) {
+    // Update span event
+    ev.dateStart = newDate;
+    ev.dateEnd   = newDateEnd;
+    ev.date      = newDate;
+  } else {
+    ev.dateEnd = newDateEnd !== newDate ? newDateEnd : undefined;
+
+    // If converting single to span
+    if (editIsRange && newDate !== newDateEnd) {
+      snsData[_detailKey].splice(_detailIdx, 1);
+      if (!snsData[_detailKey].length) delete snsData[_detailKey];
+      spanEvents.push({ ...ev, dateStart: newDate, dateEnd: newDateEnd, date: newDate, _dbId: ev._dbId });
+      cancelEdit(); closeDetail(); render(); return;
+    }
+
+    // Move to new date if changed
+    if (dateChanged) {
+      snsData[_detailKey].splice(_detailIdx, 1);
+      if (!snsData[_detailKey].length) delete snsData[_detailKey];
+      if (!snsData[newDate]) snsData[newDate] = [];
+      ev.date = newDate;
+      snsData[newDate].push(ev);
+    }
+  }
 
   saveBtn.textContent = '저장'; saveBtn.disabled = false;
   cancelEdit();
