@@ -517,25 +517,61 @@
   }
 
   /* ─── SPAN EVENTS ─── */
+  /* span-wrapper: stretches across cells via negative margin */
   .span-block {
-    height: 18px;
-    border-radius: 4px;
-    display: flex;
-    align-items: center;
-    padding: 0 6px;
-    font-size: 10px;
-    font-weight: 500;
-    white-space: nowrap;
+    border-radius: 6px;
     overflow: hidden;
-    text-overflow: ellipsis;
     cursor: pointer;
     flex-shrink: 0;
-    margin-bottom: 2px;
+    margin-bottom: 3px;
     box-sizing: border-box;
+    transition: filter 0.12s;
+    position: relative;
+    z-index: 3;
   }
-  .span-block.teaser { background: #9FE1CB; color: #085041; }
-  .span-block.debut  { background: #F4C0D1; color: #72243E; }
-  .span-block:hover  { filter: brightness(0.92); }
+  .span-block:hover { filter: brightness(0.94); }
+  /* start cell: full block, right side open */
+  .span-block.span-start { border-top-right-radius: 0; border-bottom-right-radius: 0; margin-right: -9px; }
+  /* middle cell: no radius, both sides open */
+  .span-block.span-mid   { border-radius: 0; margin-left: -9px; margin-right: -9px; }
+  /* end cell: left side open */
+  .span-block.span-end   { border-top-left-radius: 0; border-bottom-left-radius: 0; margin-left: -9px; }
+
+  .span-block-label { font-size: 13px; font-weight: 600; padding: 3px 7px; }
+  .span-block-content { padding: 4px 6px 5px; display: flex; flex-direction: column; gap: 3px; }
+  .span-block-tag {
+    font-size: 12px; padding: 2px 6px; border-radius: 4px;
+    display: flex; align-items: center; gap: 4px;
+    line-height: 1.4; word-break: keep-all;
+  }
+  .span-block-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+
+  /* teaser */
+  .span-block.teaser { border: 1px solid #c2e4d0; }
+  .span-block.teaser .span-block-label { background: #9FE1CB; color: #085041; }
+  .span-block.teaser .span-block-content { background: var(--teaser-bg); }
+  .span-block.teaser .span-block-tag { background: var(--teaser-sns-bg); color: var(--teaser-sns); }
+  .span-block.teaser .span-block-dot { background: var(--teaser-sns); }
+  .span-block.teaser .span-block-tag.viral { background: var(--teaser-viral-bg); color: var(--teaser-viral); }
+  .span-block.teaser .span-block-tag.viral .span-block-dot { background: var(--teaser-viral); }
+  /* debut */
+  .span-block.debut { border: 1px solid #e0c0d0; }
+  .span-block.debut .span-block-label { background: #F4C0D1; color: #72243E; }
+  .span-block.debut .span-block-content { background: var(--debut-bg); }
+  .span-block.debut .span-block-tag { background: var(--debut-sns-bg); color: var(--debut-sns); }
+  .span-block.debut .span-block-dot { background: var(--debut-sns); }
+  .span-block.debut .span-block-tag.viral { background: var(--debut-viral-bg); color: var(--debut-viral); }
+  .span-block.debut .span-block-tag.viral .span-block-dot { background: var(--debut-viral); }
+
+  /* mid/end cells: just show background color strip, no label/content */
+  .span-block.span-mid .span-block-label,
+  .span-block.span-mid .span-block-content,
+  .span-block.span-end .span-block-label,
+  .span-block.span-end .span-block-content { display: none; }
+  .span-block.teaser.span-mid,
+  .span-block.teaser.span-end { background: var(--teaser-bg); border-color: #c2e4d0; min-height: 46px; }
+  .span-block.debut.span-mid,
+  .span-block.debut.span-end  { background: var(--debut-bg);  border-color: #e0c0d0; min-height: 46px; }
 
   /* ─── ADD BUTTON ─── */
   .add-btn {
