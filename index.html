@@ -1162,21 +1162,24 @@ async function preloadCellImages(events) {
 // Custom week-major text/styles set by user
 // key: wStr (date string of week start), value: { text, bold, italic, color }
 const majorCustom = {};
-const MAJOR_STORAGE_KEY = 'soria-major-custom';
-try {
-  const saved = JSON.parse(localStorage.getItem(MAJOR_STORAGE_KEY) || '{}');
-  // Migrate old format (single object) to new format (array)
-  Object.keys(saved).forEach(k => {
-    if (saved[k] && !Array.isArray(saved[k])) {
-      majorCustom[k] = [saved[k]]; // wrap in array
-    } else {
-      majorCustom[k] = saved[k];
-    }
-  });
-} catch(e) {}
 
-function saveMajorCustom() {
-  try { localStorage.setItem(MAJOR_STORAGE_KEY, JSON.stringify(majorCustom)); } catch(e) {}
+async function loadMajorCustomFromDB() {
+  try {
+    const rows = await sbFetch('week_notes?select=week_start,notes');
+    if (rows && rows.length) {
+      rows.forEach(row => { majorCustom[row.week_start] = row.notes; });
+    }
+  } catch(e) { console.error('loadMajorCustom error:', e); }
+}
+
+async function saveMajorCustom(wStr) {
+  const notes = majorCustom[wStr] || [];
+  try {
+    await sbFetch('week_notes', 'POST',
+      { week_start: wStr, notes: notes, updated_at: new Date().toISOString() },
+      'return=minimal,resolution=merge-duplicates'
+    );
+  } catch(e) { console.error('saveMajorCustom error:', e); }
 }
 
 // snsData starts with default, then we overlay DB events
@@ -1208,6 +1211,7 @@ async function loadFromDB() {
     const allEventsFlat = Object.values(snsData).flat().filter(ev => ev._dbId);
     await preloadCellImages(allEventsFlat);
   } catch(e) { console.error('loadFromDB error:', e); }
+  await loadMajorCustomFromDB();
   showLoader(false);
   render();
 }
@@ -1716,6 +1720,17 @@ sbClient
         break;
       }
     }
+  })
+  .subscribe();
+
+sbClient
+  .channel('week-notes-changes')
+  .on('postgres_changes', { event: '*', schema: 'public', table: 'week_notes' }, (payload) => {
+    const row = payload.new || payload.old;
+    if (!row) return;
+    if (payload.eventType === 'DELETE') delete majorCustom[row.week_start];
+    else majorCustom[row.week_start] = row.notes || [];
+    render();
   })
   .subscribe();
 
@@ -2413,7 +2428,7 @@ function saveMajorEdit() {
     }
   }
   if (customs.length === 0) delete majorCustom[_editorWStr];
-  saveMajorCustom();
+  saveMajorCustom(_editorWStr);
   closeMajorEditor();
   render();
 }
@@ -2425,7 +2440,7 @@ function deleteMajorItem() {
   customs.splice(_editorItemIdx, 1);
   if (customs.length === 0) delete majorCustom[_editorWStr];
   else majorCustom[_editorWStr] = customs;
-  saveMajorCustom();
+  saveMajorCustom(_editorWStr);
   closeMajorEditor();
   render();
 }
