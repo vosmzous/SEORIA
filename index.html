@@ -1175,10 +1175,19 @@ async function loadMajorCustomFromDB() {
 async function saveMajorCustom(wStr) {
   const notes = majorCustom[wStr] || [];
   try {
-    await sbFetch('week_notes', 'POST',
-      { week_start: wStr, notes: notes, updated_at: new Date().toISOString() },
-      'return=minimal,resolution=merge-duplicates'
-    );
+    // Try update first, then insert if not exists
+    const existing = await sbFetch('week_notes?week_start=eq.' + encodeURIComponent(wStr));
+    if (existing && existing.length > 0) {
+      await sbFetch('week_notes?week_start=eq.' + encodeURIComponent(wStr), 'PATCH',
+        { notes: notes, updated_at: new Date().toISOString() },
+        'return=minimal'
+      );
+    } else {
+      await sbFetch('week_notes', 'POST',
+        { week_start: wStr, notes: notes },
+        'return=minimal'
+      );
+    }
   } catch(e) { console.error('saveMajorCustom error:', e); }
 }
 
