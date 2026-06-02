@@ -48,8 +48,8 @@
   .topbar {
     background: var(--surface);
     border-bottom: 1px solid var(--border);
-    padding: 0 40px;
-    max-width: 1400px;
+    padding: 0 16px;
+    max-width: 1600px;
     margin: 0 auto;
     display: flex;
     align-items: center;
@@ -111,8 +111,8 @@
 
   /* ─── CALENDAR HEADER ─── */
   .cal-controls {
-    padding: 24px 40px 16px;
-    max-width: 1400px;
+    padding: 24px 16px 16px;
+    max-width: 1600px;
     margin: 0 auto;
     display: flex;
     align-items: center;
@@ -158,8 +158,8 @@
 
   /* ─── LEGEND ─── */
   .legend {
-    padding: 0 40px 20px;
-    max-width: 1400px;
+    padding: 0 16px 20px;
+    max-width: 1600px;
     margin: 0 auto;
     display: flex; gap: 20px; flex-wrap: wrap; align-items: center;
   }
@@ -183,8 +183,8 @@
 
   /* ─── GRID ─── */
   .cal-wrap {
-    padding: 0 40px 40px;
-    max-width: 1400px;
+    padding: 0 16px 40px;
+    max-width: 1600px;
     margin: 0 auto;
     overflow: hidden;
     overflow: hidden;
@@ -198,7 +198,7 @@
   }
   .cal-head {
     display: grid;
-    grid-template-columns: 140px repeat(5, 1fr);
+    grid-template-columns: 140px repeat(7, 1fr);
     background: var(--surface2);
     border-bottom: 1px solid var(--border);
   }
@@ -216,7 +216,7 @@
 
   .cal-week {
     display: grid;
-    grid-template-columns: 140px repeat(5, 1fr);
+    grid-template-columns: 140px repeat(7, 1fr);
     grid-auto-rows: auto;
     align-items: stretch;
     border-bottom: 1px solid var(--border);
@@ -614,6 +614,32 @@
   .span-block.teaser.span-end { background: #E8F5EE; border-color: #c2e4d0; min-height: 46px; border-left: none; }
   .span-block.debut.span-mid,
   .span-block.debut.span-end  { background: #F9EDF2; border-color: #e0c0d0; min-height: 46px; border-left: none; }
+
+  /* ─── DAY NOTE ─── */
+  .day-note {
+    font-size: 11px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    border-radius: 3px;
+    padding: 1px 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    flex: 1;
+    min-width: 0;
+    transition: background 0.1s;
+  }
+  .day-note:hover { background: rgba(0,0,0,0.04); }
+  .day-note-empty {
+    color: var(--text-muted);
+    opacity: 0;
+    font-style: italic;
+    font-size: 11px;
+  }
+  .day-note-empty::before { content: '+ 메모'; }
+  .day-cell:hover .day-note-empty,
+  .day-cell:focus-within .day-note-empty { opacity: 1; }
 
   /* ─── ADD BUTTON ─── */
   .add-btn {
@@ -1090,6 +1116,8 @@
       <div class="cal-head-cell">Wed</div>
       <div class="cal-head-cell">Thu</div>
       <div class="cal-head-cell">Fri</div>
+      <div class="cal-head-cell">Sat</div>
+      <div class="cal-head-cell" style="color:#C0392B;">Sun</div>
     </div>
     <div class="cal-body" id="cal-body"></div>
   </div>
@@ -1147,6 +1175,34 @@ const defaultData = {
 
 // Span events (multi-day) cache
 const spanEvents = [];
+
+// Day notes cache: date -> note text
+const dayNotes = {};
+
+async function loadDayNotesFromDB() {
+  try {
+    const rows = await sbFetch('day_notes?select=date,note');
+    if (rows) rows.forEach(r => { dayNotes[r.date] = r.note; });
+  } catch(e) { console.error('loadDayNotes error:', e); }
+}
+
+async function saveDayNote(dateStr, note) {
+  try {
+    const existing = await sbFetch('day_notes?date=eq.' + dateStr);
+    if (existing && existing.length > 0) {
+      if (note) {
+        await sbFetch('day_notes?date=eq.' + dateStr, 'PATCH', { note, updated_at: new Date().toISOString() }, 'return=minimal');
+      } else {
+        await sbFetch('day_notes?date=eq.' + dateStr, 'DELETE', null, 'return=minimal');
+        delete dayNotes[dateStr];
+      }
+    } else if (note) {
+      await sbFetch('day_notes', 'POST', { date: dateStr, note }, 'return=minimal');
+    }
+    if (note) dayNotes[dateStr] = note;
+    else delete dayNotes[dateStr];
+  } catch(e) { console.error('saveDayNote error:', e); }
+}
 
 // Image thumbnail cache: dbId -> [{id, url}]
 const imageCache = {};
@@ -1221,6 +1277,7 @@ async function loadFromDB() {
     await preloadCellImages(allEventsFlat);
   } catch(e) { console.error('loadFromDB error:', e); }
   await loadMajorCustomFromDB();
+  await loadDayNotesFromDB();
   showLoader(false);
   render();
 }
@@ -1283,12 +1340,12 @@ function render(){
   const today = toStr(new Date());
   const firstDay = new Date(currentYear, currentMonth-1, 1);
   const lastDay  = new Date(currentYear, currentMonth, 0);
-  let dow = firstDay.getDay(); dow = dow===0?6:dow-1;
+  let dow = firstDay.getDay(); dow = dow===0?6:dow-1; // 0=Mon...6=Sun
   let ws = new Date(firstDay); ws.setDate(firstDay.getDate()-dow);
 
   // Skip first week if Mon-Fri are all in previous month (1st falls on a weekend, but we only show Mon-Fri)
   // Since we show Mon-Fri only, skip if the Friday of the first week is still in the prev month
-  const wsFri = new Date(ws); wsFri.setDate(ws.getDate()+4);
+  const wsFri = new Date(ws); wsFri.setDate(ws.getDate()+6);
   if (wsFri.getMonth()+1 < currentMonth || (wsFri.getFullYear() < currentYear)) {
     ws.setDate(ws.getDate()+7);
   }
@@ -1341,7 +1398,7 @@ function render(){
 
     weekRow.appendChild(wCell);
 
-    for(let i=0;i<5;i++){
+    for(let i=0;i<7;i++){
       const d = new Date(ws); d.setDate(ws.getDate()+i);
       const ds = toStr(d);
       const inMonth = d.getMonth()+1 === currentMonth;
@@ -1375,11 +1432,26 @@ function render(){
       }
 
       const dn = document.createElement('div');
+      const dayOfWeek = d.getDay(); // 0=Sun, 6=Sat
       dn.className = 'day-num' + (ds===today?' today':'');
+      if (!dn.classList.contains('today')) {
+        if (dayOfWeek === 0) dn.style.color = '#C0392B'; // Sun only
+      }
       dn.textContent = d.getDate();
-      cell.appendChild(dn);
 
+      // Day header: date number + inline note
+      const dayHeader = document.createElement('div');
+      dayHeader.style.cssText = 'display:flex;align-items:center;gap:4px;margin-bottom:2px;min-width:0;';
+      dayHeader.appendChild(dn);
 
+      const dayNote = dayNotes[ds] || '';
+      const noteEl = document.createElement('div');
+      noteEl.className = 'day-note' + (dayNote ? '' : ' day-note-empty');
+      noteEl.textContent = dayNote;
+      noteEl.dataset.date = ds;
+      noteEl.addEventListener('click', (e) => { e.stopPropagation(); openDayNoteEditor(ds, noteEl); });
+      dayHeader.appendChild(noteEl);
+      cell.appendChild(dayHeader);
 
       const events = snsData[ds] || [];
 
@@ -1477,7 +1549,7 @@ function render(){
     body.appendChild(weekRow);
 
     // ─── SPAN EVENTS: absolute overlay ───
-    const weekFriOv = new Date(ws); weekFriOv.setDate(ws.getDate()+4);
+    const weekFriOv = new Date(ws); weekFriOv.setDate(ws.getDate()+6);
     const weekFriOvStr = toStr(weekFriOv);
     const weekSpans = spanEvents.filter(ev => shouldShow(ev) && ev.dateStart <= weekFriOvStr && ev.dateEnd >= wStr);
 
@@ -1485,13 +1557,13 @@ function render(){
       const isWeekStart = ev.dateStart >= wStr;
       const isWeekEnd   = ev.dateEnd <= weekFriOvStr;
       let startCol = 0, endCol = 4;
-      for (let c = 0; c < 5; c++) {
+      for (let c = 0; c < 7; c++) {
         const cd = new Date(ws); cd.setDate(ws.getDate()+c);
         if (toStr(cd) === ev.dateStart) startCol = c;
         if (toStr(cd) === ev.dateEnd)   endCol   = c;
       }
       if (!isWeekStart) startCol = 0;
-      if (!isWeekEnd)   endCol   = 4;
+      if (!isWeekEnd)   endCol   = 6;
 
       const overlay = document.createElement('div');
       overlay.className = 'span-in-cell ' + ev.campaign + (ev.type==='viral'?' viral-span':'');
@@ -1547,7 +1619,7 @@ function render(){
         requestAnimationFrame(() => {
           const overlayH = overlay.offsetHeight;
           const minH = top + overlayH + 8;
-          for (let c = 0; c < 5; c++) {
+          for (let c = 0; c < 7; c++) {
             const cell = cells[c];
             const curMin = parseInt(cell.style.minHeight) || 120;
             if (minH > curMin) {
@@ -1659,6 +1731,48 @@ document.addEventListener('keydown', function(e) {
   }
 });
 
+// ─── DAY NOTE EDITOR ───
+let _dayNoteEditorDate = null;
+let _dayNoteEditorEl = null;
+
+function openDayNoteEditor(dateStr, noteEl) {
+  // Close any existing inline editor
+  closeDayNoteEditor();
+
+  _dayNoteEditorDate = dateStr;
+  _dayNoteEditorEl = noteEl;
+
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'form-input';
+  input.value = dayNotes[dateStr] || '';
+  input.placeholder = '메모 입력...';
+  input.style.cssText = 'font-size:11px;padding:2px 5px;height:20px;border-radius:3px;';
+  input.addEventListener('keydown', async (e) => {
+    if (e.key === 'Enter') {
+      const val = input.value.trim();
+      await saveDayNote(dateStr, val);
+      closeDayNoteEditor();
+      render();
+    }
+    if (e.key === 'Escape') { closeDayNoteEditor(); }
+  });
+  input.addEventListener('blur', async () => {
+    const val = input.value.trim();
+    await saveDayNote(dateStr, val);
+    closeDayNoteEditor();
+    render();
+  });
+
+  noteEl.replaceWith(input);
+  setTimeout(() => input.focus(), 10);
+}
+
+function closeDayNoteEditor() {
+  _dayNoteEditorDate = null;
+  _dayNoteEditorEl = null;
+}
+
 // ─── REALTIME ───
 sbClient
   .channel('events-changes')
@@ -1720,6 +1834,17 @@ sbClient
         break;
       }
     }
+  })
+  .subscribe();
+
+sbClient
+  .channel('day-notes-changes')
+  .on('postgres_changes', { event: '*', schema: 'public', table: 'day_notes' }, (payload) => {
+    const row = payload.new || payload.old;
+    if (!row) return;
+    if (payload.eventType === 'DELETE') delete dayNotes[row.date];
+    else dayNotes[row.date] = row.note;
+    render();
   })
   .subscribe();
 
@@ -2454,7 +2579,7 @@ document.getElementById('major-editor-input').addEventListener('keydown', e => {
 // ─── RESIZE ───
 // colWidths: [labelWidth, c1, c2, c3, c4, c5] in px
 // rowHeights: [weekIdx] in px
-const COL_COUNT = 6; // label + 5 days
+const COL_COUNT = 8; // label + 7 days
 const COL_MIN = 60;
 const ROW_MIN = 60;
 let colWidths = null; // lazily initialized
@@ -2462,11 +2587,11 @@ let rowHeights = {}; // weekIdx -> px
 
 function getInitialColWidths() {
   const grid = document.querySelector('.cal-head');
-  if (!grid) return [140, 0, 0, 0, 0, 0];
+  if (!grid) return [140, 0, 0, 0, 0, 0, 0, 0];
   const totalW = grid.offsetWidth;
   const labelW = 140;
-  const dayW = (totalW - labelW) / 5;
-  return [labelW, dayW, dayW, dayW, dayW, dayW];
+  const dayW = (totalW - labelW) / 7;
+  return [labelW, dayW, dayW, dayW, dayW, dayW, dayW, dayW];
 }
 
 function applyColWidths() {
@@ -2490,7 +2615,6 @@ function applyRowHeights() {
 function addResizeHandles() {
   // Column resize handles on header cells
   document.querySelectorAll('.cal-head-cell').forEach((cell, colIdx) => {
-    // skip last col (no right border to drag)
     if (colIdx === COL_COUNT - 1) return;
     const handle = document.createElement('div');
     handle.className = 'col-resize-handle';
