@@ -1232,16 +1232,7 @@ async function deleteEventFromDB(dbId) {
   await sbFetch('events?id=eq.' + dbId, 'DELETE', null, 'return=minimal');
 }
 
-const majorMap = {
-  '2026-06-08':'SNS 계정 생성','2026-07-13':'무드보드 바이럴 시작',
-  '2026-07-20':'세계관 필름 1편','2026-08-03':'세계관 필름 2편',
-  '2026-08-17':'세계관 필름 3편','2026-08-31':'세계관 필름 4편',
-  '2026-09-14':'세계관 필름 5편','2026-09-21':'커뮤니티 바이럴 시작',
-  '2026-09-28':'★ 데뷔 캠페인 시작','2026-10-05':'뮤직비디오 공개',
-  '2026-10-12':'바이럴 콘텐츠 시작','2026-10-26':'자체 콘텐츠 1편',
-  '2026-11-09':'자체 콘텐츠 2편','2026-11-23':'자체 콘텐츠 3편',
-  '2026-12-07':'자체 콘텐츠 4편',
-};
+const majorMap = {};
 
 function pad(n){ return String(n).padStart(2,'0'); }
 function toStr(d){ return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
